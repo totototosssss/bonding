@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bonding Layout Optimizer Pro v3</title>
+    <title>Bonding Layout Optimizer Pro v4</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -242,15 +242,20 @@ const COLORS = {
     GRID_BG_1: '#ffffff',
     GRID_BG_2: '#f8fafc',
     GRID_DOT:  '#cbd5e1',
+    GRID_BORDER: '#334155', // Darker border
+    
     PAD_GATE: '#16a34a',
     PAD_BAD:  '#dc2626',
     PAD_RF:   '#2563eb',
     PAD_TEXT: '#ffffff',
+    
     PIN_OFF:  '#cbd5e1',
     PIN_GATE: '#eab308',
     PIN_RF:   '#2563eb',
+    
     WIRE_RF:  '#2563eb',
     WIRE_G:   '#f59e0b',
+    
     DEV_STROKE: '#475569',
     DEV_FILL:   'rgba(71, 85, 105, 0.03)',
     DEV_SEL:    '#7c3aed'
@@ -381,7 +386,18 @@ class BondingApp {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Grid
+        // 1. Grid Background & Border
+        // Grid is from -0.5 to 11.5 logically
+        const gridStart = this.toScreen(-0.5, -0.5); // Bottom-Left (due to Y inversion logic in toScreen)
+        const gridEnd = this.toScreen(GRID_SIZE-0.5, GRID_SIZE-0.5); // Top-Right
+        
+        // Determine actual bounding box
+        const gx = Math.min(gridStart.x, gridEnd.x);
+        const gy = Math.min(gridStart.y, gridEnd.y);
+        const gw = Math.abs(gridEnd.x - gridStart.x);
+        const gh = Math.abs(gridEnd.y - gridStart.y);
+
+        // Grid Stripes
         for (let i=0; i<GRID_SIZE; i+=2) {
             const p1 = this.toScreen(i-0.5, -0.5);
             const p2 = this.toScreen(i+1.5, GRID_SIZE-0.5);
@@ -390,6 +406,13 @@ class BondingApp {
             ctx.fillStyle = (i/2)%2===0 ? COLORS.GRID_BG_1 : COLORS.GRID_BG_2;
             ctx.fillRect(x, y, w, h);
         }
+
+        // Draw Thick Border around 12x12
+        ctx.strokeStyle = COLORS.GRID_BORDER;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(gx, gy, gw, gh);
+
+        // Grid Dots
         ctx.fillStyle = COLORS.GRID_DOT;
         for(let gx=0; gx<GRID_SIZE; gx++){
             for(let gy=0; gy<GRID_SIZE; gy++){
@@ -548,7 +571,6 @@ class BondingApp {
         });
     }
 
-    /* --- Optimization Solver with Constraint: SQD/DQD must have >=1 RF --- */
     runOptimization() {
         // 1. Setup Data
         let allPins = [];
@@ -580,11 +602,11 @@ class BondingApp {
             }).map(p => p.originalIdx);
         });
 
-        // 2. Cost Function
+        // 2. Cost Function (Corrected for "At least 1 RF")
         const calcCost = (assignment) => {
             const segs = [];
             let lenSum = 0;
-            let missingRFPref = 0; // Preference: Pin is RF but Pad isn't
+            let missingRFPref = 0; 
             let deviceHasRF = new Array(this.devices.length).fill(false);
             
             for(let i=0; i<N; i++) {
@@ -597,19 +619,22 @@ class BondingApp {
                 lenSum += dist(pin.x, pin.y, pad.x, pad.y);
                 segs.push({p1: pin, p2: pad});
 
-                // RF Logic
                 const isRFPin = ['S','D'].includes(pin.role);
                 if (isRFPin) {
-                    if (padSt !== 2) missingRFPref++;
-                    else deviceHasRF[pin.devIdx] = true; // Fulfilled Critical
+                    if (padSt === 2) {
+                        deviceHasRF[pin.devIdx] = true; 
+                    } else {
+                        // S/D connected to Gate Pad (preference penalty only)
+                        // If logic: "Either is fine", then this penalty should be mild if device already has RF.
+                        // But let's keep it moderate to encourage dual connection if easy.
+                        missingRFPref++;
+                    }
                 }
             }
 
-            // Critical Constraint: Each device MUST have at least 1 RF connection
+            // Critical Constraint: Each device with active S/D must have >=1 RF pad connection
             let criticalMiss = 0;
             for(let d=0; d<this.devices.length; d++) {
-                // If device has S or D pins active but none connected to RF pad
-                // (We assume device has active pins, otherwise ignore)
                 const hasActiveRFPins = allPins.some(p => p.devIdx === d && ['S','D'].includes(p.role));
                 if (hasActiveRFPins && !deviceHasRF[d]) {
                     criticalMiss++;
@@ -623,10 +648,8 @@ class BondingApp {
                 }
             }
 
-            // Weights: Critical > Cross > Pref > Length
-            // Critical Miss is absolutely unacceptable.
             return { 
-                val: (criticalMiss * 5e6) + (crosses * 1e6) + (missingRFPref * 1e5) + lenSum, 
+                val: (criticalMiss * 5e6) + (crosses * 1e6) + (missingRFPref * 1e4) + lenSum, 
                 crosses, criticalMiss, missingRFPref, lenSum 
             };
         };
@@ -648,7 +671,7 @@ class BondingApp {
             allowed[i].forEach(pid => {
                 if(usedPads.has(pid)) return;
                 let d = dist(allPins[i].x, allPins[i].y, this.pads[pid].x, this.pads[pid].y);
-                if (isRF && this.padStatus[pid] === 2) d -= 2000; // Strong pull
+                if (isRF && this.padStatus[pid] === 2) d -= 1000;
                 if (d < minD) { minD = d; bestP = pid; }
             });
             if (bestP !== -1) { currentAssign[i] = bestP; usedPads.add(bestP); }
@@ -749,7 +772,7 @@ class BondingApp {
                 return rs(a.role) - rs(b.role);
             });
 
-            // Check if this specific device missed RF
+            // "At least one RF" check for UI Alert
             const hasS = lines.some(l => l.role === 'S');
             const hasD = lines.some(l => l.role === 'D');
             const connectedRF = lines.some(l => (l.role === 'S' || l.role === 'D') && l.isRFPad);
