@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bonding Layout Optimizer (Web)</title>
+    
+    <style>
+        :root {
+            --bg-color: #f5f5f5;
+            --panel-bg: #ffffff;
+            --accent: #2196F3;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        /* Layout */
+        #container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas-wrapper {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #e0e0e0;
+            overflow: auto;
+        }
+
+        canvas {
+            background-color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            cursor: default;
+        }
+
+        #sidebar {
+            width: 300px;
+            background-color: var(--panel-bg);
+            padding: 20px;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        /* Controls */
+        h2 { margin-top: 0; font-size: 1.2rem; }
+        
+        .control-group {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+
+        select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            font-size: 1rem;
+        }
+
+        button#btn-optimize {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button#btn-optimize:hover {
+            background-color: #1976D2;
+        }
+
+        /* Info Text */
+        #info-panel {
+            font-family: monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            color: #555;
+            flex-grow: 1;
+        }
+
+        .stats-box {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <div id="canvas-wrapper">
+        <canvas id="mainCanvas"></canvas>
+    </div>
+    <div id="sidebar">
+        <h2>Bonding Optimizer</h2>
+        
+        <div class="control-group">
+            <label>Device Type</label>
+            <select id="device-select">
+                <option value="SQD">SQD (2x4)</option>
+                <option value="DQD">DQD (2x5)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <button id="btn-optimize">RUN OPTIMIZATION</button>
+        </div>
+
+        <div id="info-panel">
+HOW TO USE
+------------------
+1. DRAG & DROP:
+   Move devices.
+2. PIN ROLES:
+   [Right-Click on Pin]:
+   G -> S -> D
+3. PADS:
+   [Click on Pad]:
+   Green (Gate) -> Red (Forbidden) -> Blue (RF)
+        </div>
+        <div id="stats-output" class="stats-box" style="display:none;"></div>
+    </div>
+</div>
+
+<script>
+/**
+ * Constants & Config
+ */
+const GRID_SIZE = 12;
+const PAD_CONFIG = {
+    'TOP':    [6, 10, 24, 7, 5, 16],
+    'RIGHT':  [1, 14, 18, 19, 20, 21],
+    'BOTTOM': [12, 2, 3, 4, 8, 22],
+    'LEFT':   [11, 9, 23, 13, 15, 17]
+};
+
+// Colors
+const COLORS = {
+    GRID_BG_1: '#f9f9f9',
+    GRID_BG_2: '#eaeaea',
+    PAD_GATE: '#4CAF50', // 0
+    PAD_FORBIDDEN: '#F44336', // 1
+    PAD_RF: '#2196F3', // 2
+    PIN_INACTIVE: 'rgba(0,0,0,0.3)',
+    PIN_GATE: '#FFC107',
+    PIN_RF: '#2196F3',
+    WIRE_GATE: 'orange',
+    WIRE_RF: 'deepskyblue'
+};
+
+/**
+ * Math & Optimization Logic
+ */
+
+// Helper: Check intersection between two line segments p1-p2 and p3-p4
+function checkIntersection(p1, p2, p3, p4) {
+    const d = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
+    if (d === 0) return false;
+    const u = ((p3.x - p1.x) * (p4.y - p3.y) - (p3.y - p1.y) * (p4.x - p3.x)) / d;
+    const v = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / d;
+    return (u > 0.001 && u < 0.999) && (v > 0.001 && v < 0.999);
+}
+
+function dist(p1, p2) {
+    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+}
+
+// Optimization Class
+class Optimizer {
+    constructor(pins, pads, padStatus) {
+        this.pins = pins; // {pos: {x,y}, role: 'G'|'S'|'D', id, devId}
+        this.pads = pads; // {pos: {x,y}, label, index}
+        this.padStatus = padStatus; // array of ints
+    }
+
+    solve() {
+        // 1. Filter Available Pads and Pins
+        const activePins = this.pins.filter(p => p.active);
+        const availPadIndices = this.pads.map((_, i) => i).filter(i => this.padStatus[i] !== 1); // 1 is Forbidden
+        
+        // Define allowed pads for each pin
+        const allowed = activePins.map(pin => {
+            if (pin.role === 'G') {
+                return availPadIndices.filter(pid => this.padStatus[pid] === 0);
+            } else {
+                return availPadIndices.filter(pid => this.padStatus[pid] === 0 || this.padStatus[pid] === 2);
+            }
+        });
+
+        // 2. Greedy Initialization (Nearest Neighbor with Heuristic)
+        // Sort pins: RF pins first (harder constraints), then by number of allowed options
+        const pinIndices = activePins.map((_, i) => i);
+        pinIndices.sort((a, b) => {
+            const isRF_a = (activePins[a].role !== 'G');
+            const isRF_b = (activePins[b].role !== 'G');
+            if (isRF_a !== isRF_b) return isRF_a ? -1 : 1;
+            return allowed[a].length - allowed[b].length;
+        });
+
+        let assignment = new Array(activePins.length).fill(-1);
+        let usedPads = new Set();
+
+        // Assign
+        for (let idx of pinIndices) {
+            let bestPid = -1;
+            let minD = Infinity;
+            
+            for (let pid of allowed[idx]) {
+                if (usedPads.has(pid)) continue;
+                const d = dist(activePins[idx].pos, this.pads[pid].pos);
+                if (d < minD) {
+                    minD = d;
+                    bestPid = pid;
+                }
+            }
+            
+            if (bestPid !== -1) {
+                assignment[idx] = bestPid;
+                usedPads.add(bestPid);
+            }
+        }
+
+        // Remove unassigned pins from consideration
+        // (In a real solver we might want to fail, but here we just skip connection)
+        
+        // 3. Iterative Improvement (Deterministic Swap)
+        // Try to swap connections to minimize cost (crossings > missing RF > length)
+        
+        let currentCostObj = this.calculateCost(assignment, activePins);
+        let improved = true;
+        let loops = 0;
+        const MAX_LOOPS = 100;
+
+        while (improved && loops < MAX_LOOPS) {
+            improved = false;
+            loops++;
+
+            // Swap attempt
+            for (let i = 0; i < assignment.length; i++) {
+                if (assignment[i] === -1) continue;
+                for (let j = i + 1; j < assignment.length; j++) {
+                    if (assignment[j] === -1) continue;
+
+                    // Check if swap is valid regarding pad types
+                    const padI = assignment[i];
+                    const padJ = assignment[j];
+                    const allowedI = allowed[i].includes(padJ);
+                    const allowedJ = allowed[j].includes(padI);
+
+                    if (allowedI && allowedJ) {
+                        // Swap
+                        [assignment[i], assignment[j]] = [assignment[j], assignment[i]];
+                        const newCostObj = this.calculateCost(assignment, activePins);
+                        
+                        if (newCostObj.total < currentCostObj.total - 0.0001) {
+                            currentCostObj = newCostObj;
+                            improved = true;
+                        } else {
+                            // Revert
+                            [assignment[i], assignment[j]] = [assignment[j], assignment[i]];
+                        }
+                    }
+                }
+            }
+            
+            // 1-opt attempt (Change to unused pad)
+            // Get currently unused pads
+            const currentUsed = new Set(assignment.filter(a => a !== -1));
+            const unused = availPadIndices.filter(p => !currentUsed.has(p));
+
+            for (let i = 0; i < assignment.length; i++) {
+                if (assignment[i] === -1) continue;
+                const originalPad = assignment[i];
+                
+                for (let uPad of unused) {
+                    if (allowed[i].includes(uPad)) {
+                        assignment[i] = uPad;
+                        const newCostObj = this.calculateCost(assignment, activePins);
+                        if (newCostObj.total < currentCostObj.total - 0.0001) {
+                            currentCostObj = newCostObj;
+                            improved = true;
+                            // Update unused list
+                            currentUsed.delete(originalPad);
+                            currentUsed.add(uPad);
+                            // Lazy update of unused array for next iteration
+                        } else {
+                            assignment[i] = originalPad;
+                        }
+                    }
+                }
+            }
+        }
+
+        return { assignment, activePins, stats: currentCostObj };
+    }
+
+    calculateCost(assignment, pins) {
+        let crossings = 0;
+        let totalLen = 0;
+        let missingRF = 0;
+        
+        const lines = [];
+        for(let i=0; i<assignment.length; i++) {
+            if (assignment[i] === -1) continue;
+            lines.push({
+                p1: pins[i].pos,
+                p2: this.pads[assignment[i]].pos,
+                isRF: pins[i].role !== 'G',
+                padStatus: this.padStatus[assignment[i]]
+            });
+        }
+
+        // 1. Length
+        for (let l of lines) {
+            totalLen += dist(l.p1, l.p2);
+        }
+
+        // 2. Crossings
+        for (let i = 0; i < lines.length; i++) {
+            for (let j = i + 1; j < lines.length; j++) {
+                if (checkIntersection(lines[i].p1, lines[i].p2, lines[j].p1, lines[j].p2)) {
+                    crossings++;
+                }
+            }
+        }
+
+        // 3. Missing RF (connected RF pin to non-RF pad)
+        // Note: The python script checks if ANY RF pad exists on board, if so strict check.
+        // Simplifying here: if pin is S/D and pad is not Blue(2), it's a penalty.
+        for (let l of lines) {
+            if (l.isRF && l.padStatus !== 2) {
+                missingRF++;
+            }
+        }
+
+        // Weights
+        const W_CROSS = 10000;
+        const W_MISS = 2000;
+        const W_LEN = 1;
+
+        const total = (crossings * W_CROSS) + (missingRF * W_MISS) + (totalLen * W_LEN);
+        return { total, crossings, totalLen, missingRF };
+    }
+}
+
+/**
+ * Main Application
+ */
+class App {
+    constructor() {
+        this.canvas = document.getElementById('mainCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        
+        // Logical coordinate system: 0 to 11
+        // Screen coordinate system: Scaled
+        this.scale = 40; // Pixels per unit
+        this.margin = 3; // Units margin
+        this.logicalSize = GRID_SIZE;
+        
+        // State
+        this.outerStatus = new Array(24).fill(0); // 0:Gate, 1:Forbidden, 2:RF
+        this.devices = [];
+        this.pads = []; // Calculated positions
+        this.lines = []; // Result wires
+        this.selectedDeviceIdx = 0;
+        
+        this.dragState = {
+            active: false,
+            devIdx: -1,
+            offset: {x:0, y:0}
+        };
+
+        this.initPads();
+        this.setDeviceType('SQD');
+        
+        // Events
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        
+        this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
+        this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
+        this.canvas.addEventListener('mouseup', e => this.onMouseUp(e));
+        this.canvas.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            this.onRightClick(e);
+        });
+
+        document.getElementById('device-select').addEventListener('change', (e) => {
+            this.setDeviceType(e.target.value);
+        });
+
+        document.getElementById('btn-optimize').addEventListener('click', () => {
+            this.runOptimization();
+        });
+
+        // Loop
+        requestAnimationFrame(() => this.draw());
+    }
+
+    initPads() {
+        this.pads = [];
+        const low = -3.0;
+        const high = this.logicalSize - 1 + 3.0;
+        const max = this.logicalSize - 1;
+        
+        const makePad = (x, y, label, idx) => ({ pos:{x,y}, label, idx });
+        
+        let globalIdx = 0;
+        // Top
+        const pts = [0, 2.2, 4.4, 6.6, 8.8, 11]; // evenly spaced approx
+        PAD_CONFIG['TOP'].forEach((lbl, i) => this.pads.push(makePad(pts[i], high, lbl, globalIdx++)));
+        PAD_CONFIG['RIGHT'].forEach((lbl, i) => this.pads.push(makePad(high, 11-pts[i], lbl, globalIdx++))); // Y inverted for canvas? No, keep logic 
+        PAD_CONFIG['BOTTOM'].forEach((lbl, i) => this.pads.push(makePad(11-pts[i], low, lbl, globalIdx++)));
+        PAD_CONFIG['LEFT'].forEach((lbl, i) => this.pads.push(makePad(low, pts[i], lbl, globalIdx++)));
+        
+        // Adjust coordinates to match visual grid 0..11
+        // (Just ensure the layout logic matches the drawing logic)
+    }
+
+    setDeviceType(type) {
+        this.devices = [];
+        this.lines = [];
+        document.getElementById('stats-output').style.display = 'none';
+
+        let w = 2, h = 4;
+        let x = 3.5, y = 3.5;
+        if (type === 'DQD') {
+            w = 2; h = 5;
+            x = 7.5; y = 7.0;
+        }
+
+        // Initialize pins
+        // Logic: Centered at (0,0) rel, then added to pos
+        const pins = [];
+        const x_range = Array.from({length:w}, (_, i) => -(w-1)/2 + i);
+        const y_range = Array.from({length:h}, (_, i) => -(h-1)/2 + i);
+        
+        for (let py of y_range) {
+            for (let px of x_range) {
+                pins.push({
+                    rel: {x: px, y: py},
+                    active: true,
+                    role: 'G'
+                });
+            }
+        }
+
+        // Auto assign S/D to top/bottom by Y sort
+        pins.sort((a,b) => a.rel.y - b.rel.y);
+        pins[0].role = 'S';
+        pins[pins.length-1].role = 'D';
+
+        this.devices.push({
+            name: type,
+            w, h,
+            pos: {x, y},
+            pins: pins
+        });
+
+        this.selectedDeviceIdx = 0;
+        this.draw();
+    }
+
+    resize() {
+        const wrap = document.getElementById('canvas-wrapper');
+        this.canvas.width = wrap.clientWidth;
+        this.canvas.height = wrap.clientHeight;
+        
+        // Calculate scale to fit grid + margins
+        const fitW = this.logicalSize + this.margin * 2;
+        const fitH = this.logicalSize + this.margin * 2;
+        const scX = this.canvas.width / fitW;
+        const scY = this.canvas.height / fitH;
+        this.scale = Math.min(scX, scY) * 0.9;
+        
+        this.draw();
+    }
+
+    // Coord transform
+    toScreen(lx, ly) {
+        const cx = this.canvas.width / 2;
+        const cy = this.canvas.height / 2;
+        const offX = (lx - (this.logicalSize - 1)/2) * this.scale;
+        const offY = (ly - (this.logicalSize - 1)/2) * this.scale; 
+        // Note: Canvas Y is down, Math Y is up usually. 
+        // To match Python script which seemed to have Y up? 
+        // Actually matplotlib default is Y up. Canvas is Y down.
+        // Let's invert Y for drawing to match logical intuition
+        return { x: cx + offX, y: cy - offY };
+    }
+
+    toLogical(sx, sy) {
+        const cx = this.canvas.width / 2;
+        const cy = this.canvas.height / 2;
+        const lx = (sx - cx) / this.scale + (this.logicalSize - 1)/2;
+        const ly = -(sy - cy) / this.scale + (this.logicalSize - 1)/2; // Inverted Y
+        return { x: lx, y: ly };
+    }
+
+    draw() {
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 1. Draw Grid
+        for (let i = 0; i < this.logicalSize; i+=2) {
+            // Draw alternating stripes
+            const p1 = this.toScreen(i - 0.5, -0.5);
+            const p2 = this.toScreen(i + 1.5, this.logicalSize - 0.5);
+            // Since Y is inverted, p1.y might be > p2.y
+            const top = Math.min(p1.y, p2.y);
+            const bot = Math.max(p1.y, p2.y);
+            const left = Math.min(p1.x, p2.x);
+            const right = Math.max(p1.x, p2.x);
+
+            ctx.fillStyle = (i/2)%2 === 0 ? COLORS.GRID_BG_1 : COLORS.GRID_BG_2;
+            ctx.fillRect(left, top, right-left, bot-top);
+        }
+
+        // Grid dots
+        ctx.fillStyle = '#ccc';
+        for (let y=0; y<this.logicalSize; y++) {
+            for (let x=0; x<this.logicalSize; x++) {
+                const p = this.toScreen(x, y);
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        // 2. Draw Pads
+        this.pads.forEach((pad, i) => {
+            const p = this.toScreen(pad.pos.x, pad.pos.y);
+            const status = this.outerStatus[i];
+            
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 15, 0, Math.PI*2);
+            if (status === 0) ctx.fillStyle = COLORS.PAD_GATE;
+            else if (status === 1) ctx.fillStyle = COLORS.PAD_FORBIDDEN;
+            else ctx.fillStyle = COLORS.PAD_RF;
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(pad.label, p.x, p.y);
+        });
+
+        // 3. Draw Devices
+        this.devices.forEach((dev, idx) => {
+            const center = this.toScreen(dev.pos.x, dev.pos.y);
+            const wPx = dev.w * this.scale;
+            const hPx = dev.h * this.scale;
+            
+            // Draw body
+            ctx.save();
+            ctx.translate(center.x, center.y);
+            // Rect center is at 0,0
+            ctx.fillStyle = 'rgba(128, 0, 128, 0.1)';
+            ctx.strokeStyle = idx === this.selectedDeviceIdx ? 'purple' : 'gray';
+            ctx.lineWidth = 2;
+            ctx.fillRect(-wPx/2, -hPx/2, wPx, hPx);
+            ctx.strokeRect(-wPx/2, -hPx/2, wPx, hPx);
+            
+            // Text
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText(dev.name, 0, -hPx/2 - 10);
+            ctx.restore();
+
+            // Draw Pins
+            dev.pins.forEach((pin, pinIdx) => {
+                // Pin logical pos
+                const lx = dev.pos.x + pin.rel.x;
+                const ly = dev.pos.y + pin.rel.y;
+                const p = this.toScreen(lx, ly);
+
+                ctx.beginPath();
+                const r = 8;
+                if (!pin.active) {
+                    // X mark
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 2;
+                    ctx.moveTo(p.x - r/2, p.y - r/2);
+                    ctx.lineTo(p.x + r/2, p.y + r/2);
+                    ctx.moveTo(p.x + r/2, p.y - r/2);
+                    ctx.lineTo(p.x - r/2, p.y + r/2);
+                    ctx.stroke();
+                } else {
+                    ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+                    if (pin.role === 'S' || pin.role === 'D') ctx.fillStyle = COLORS.PIN_RF;
+                    else ctx.fillStyle = COLORS.PIN_GATE;
+                    ctx.fill();
+                    ctx.stroke();
+
+                    if (pin.role !== 'G') {
+                        ctx.fillStyle = 'white';
+                        ctx.font = 'bold 8px Arial';
+                        ctx.fillText(pin.role, p.x, p.y);
+                    }
+                }
+            });
+        });
+
+        // 4. Draw Wires
+        this.lines.forEach(line => {
+            const p1 = this.toScreen(line.p1.x, line.p1.y);
+            const p2 = this.toScreen(line.p2.x, line.p2.y);
+            
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineWidth = line.isRF ? 3 : 1.5;
+            ctx.strokeStyle = line.isRF ? COLORS.WIRE_RF : COLORS.WIRE_GATE;
+            ctx.globalAlpha = 0.8;
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        });
+    }
+
+    // Interaction Handlers
+    onMouseDown(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const m = this.toLogical(e.clientX - rect.left, e.clientY - rect.top);
+
+        // 1. Check Pads (Toggle State)
+        let clickedPad = -1;
+        let minD = 0.8;
+        this.pads.forEach((pad, i) => {
+            const d = dist(m, pad.pos);
+            if (d < minD) {
+                clickedPad = i;
+                minD = d;
+            }
+        });
+        if (clickedPad !== -1) {
+            // Cycle 0->1->2->0
+            this.outerStatus[clickedPad] = (this.outerStatus[clickedPad] + 1) % 3;
+            this.lines = []; // clear solution
+            this.draw();
+            return;
+        }
+
+        // 2. Check Device Pins (Toggle Active)
+        let clickedPin = null;
+        let clickedDev = -1;
+        minD = 0.4;
+        this.devices.forEach((dev, di) => {
+            dev.pins.forEach((pin, pi) => {
+                const lx = dev.pos.x + pin.rel.x;
+                const ly = dev.pos.y + pin.rel.y;
+                const d = dist(m, {x:lx, y:ly});
+                if (d < minD) {
+                    clickedPin = pi;
+                    clickedDev = di;
+                    minD = d;
+                }
+            });
+        });
+
+        if (clickedDev !== -1) {
+            // Left click on pin: toggle active
+            const dev = this.devices[clickedDev];
+            dev.pins[clickedPin].active = !dev.pins[clickedPin].active;
+            this.lines = [];
+            this.draw();
+            return;
+        }
+
+        // 3. Check Device Body (Drag)
+        this.devices.forEach((dev, i) => {
+            if (Math.abs(m.x - dev.pos.x) < dev.w/2 && Math.abs(m.y - dev.pos.y) < dev.h/2) {
+                this.selectedDeviceIdx = i;
+                this.dragState.active = true;
+                this.dragState.devIdx = i;
+                this.dragState.offset = {
+                    x: dev.pos.x - m.x,
+                    y: dev.pos.y - m.y
+                };
+            }
+        });
+        this.draw(); // to update selection border
+    }
+
+    onMouseMove(e) {
+        if (!this.dragState.active) return;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const m = this.toLogical(e.clientX - rect.left, e.clientY - rect.top);
+        
+        const dev = this.devices[this.dragState.devIdx];
+        dev.pos.x = m.x + this.dragState.offset.x;
+        dev.pos.y = m.y + this.dragState.offset.y;
+        
+        this.lines = []; // clear solution
+        this.draw();
+    }
+
+    onMouseUp(e) {
+        if (this.dragState.active) {
+            this.dragState.active = false;
+            // Snap to grid
+            const dev = this.devices[this.dragState.devIdx];
+            const max = this.logicalSize - 1;
+            
+            // Logic from python: round(pos - 0.5) + 0.5 if even width
+            const snap = (val, size) => {
+                if (size % 2 === 0) return Math.round(val - 0.5) + 0.5;
+                return Math.round(val);
+            };
+
+            dev.pos.x = Math.max(0, Math.min(max, snap(dev.pos.x, dev.w)));
+            dev.pos.y = Math.max(0, Math.min(max, snap(dev.pos.y, dev.h)));
+            
+            this.draw();
+        }
+    }
+
+    onRightClick(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const m = this.toLogical(e.clientX - rect.left, e.clientY - rect.top);
+
+        let clickedPin = null;
+        let clickedDev = -1;
+        let minD = 0.4;
+        
+        this.devices.forEach((dev, di) => {
+            dev.pins.forEach((pin, pi) => {
+                const lx = dev.pos.x + pin.rel.x;
+                const ly = dev.pos.y + pin.rel.y;
+                const d = dist(m, {x:lx, y:ly});
+                if (d < minD) {
+                    clickedPin = pi;
+                    clickedDev = di;
+                    minD = d;
+                }
+            });
+        });
+
+        if (clickedDev !== -1) {
+            // Cycle Role: G -> S -> D -> G
+            const dev = this.devices[clickedDev];
+            const pin = dev.pins[clickedPin];
+            const current = pin.role;
+            
+            // Helper to clean up other S/Ds if necessary (simple version)
+            const setRole = (r) => {
+                if (r === 'S' || r === 'D') {
+                    // Check if other pin has this role, revert it to G
+                    dev.pins.forEach(p => {
+                        if (p.role === r) p.role = 'G';
+                    });
+                }
+                pin.role = r;
+            };
+
+            if (current === 'G') setRole('S');
+            else if (current === 'S') setRole('D');
+            else setRole('G');
+
+            this.lines = [];
+            this.draw();
+        }
+    }
+
+    runOptimization() {
+        const dev = this.devices[0]; // Supports single device for now as in GUI
+        
+        // Flatten pins to global coordinates
+        const flatPins = [];
+        dev.pins.forEach((p, i) => {
+            flatPins.push({
+                pos: { x: dev.pos.x + p.rel.x, y: dev.pos.y + p.rel.y },
+                role: p.role,
+                active: p.active,
+                id: i
+            });
+        });
+
+        const optimizer = new Optimizer(flatPins, this.pads, this.outerStatus);
+        const result = optimizer.solve();
+
+        // Convert assignment to lines
+        this.lines = [];
+        result.assignment.forEach((padIdx, i) => {
+            if (padIdx !== -1) {
+                const pin = result.activePins[i];
+                const pad = this.pads[padIdx];
+                const isRF = (pin.role !== 'G') && (this.outerStatus[padIdx] === 2);
+                
+                this.lines.push({
+                    p1: pin.pos,
+                    p2: pad.pos,
+                    isRF: isRF
+                });
+            }
+        });
+
+        // Update Stats
+        const statsDiv = document.getElementById('stats-output');
+        statsDiv.style.display = 'block';
+        statsDiv.innerHTML = `
+            <strong>Results:</strong><br>
+            Crossings: ${result.stats.crossings}<br>
+            Total Len: ${result.stats.totalLen.toFixed(1)}<br>
+            Miss RF: ${result.stats.missingRF}
+        `;
+
+        this.draw();
+    }
+}
+
+// Start
+window.onload = () => {
+    new App();
+};
+</script>
+</body>
+</html>
