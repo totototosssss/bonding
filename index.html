@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bonding Layout Optimizer Ultimate</title>
+    <title>Bonding Layout Optimizer Ultimate v2</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -13,7 +13,7 @@
             --text-main: #f1f5f9;
             --text-muted: #94a3b8;
             
-            --accent: #3b82f6; /* Blue */
+            --accent: #3b82f6; 
             --accent-glow: rgba(59, 130, 246, 0.5);
             
             --success: #10b981;
@@ -31,6 +31,7 @@
             background-color: var(--bg-app);
             color: var(--text-main);
             overflow: hidden;
+            user-select: none; /* Prevent text selection while dragging */
         }
 
         /* --- Sidebar --- */
@@ -71,6 +72,7 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 15px var(--accent-glow);
             letter-spacing: 0.02em;
+            margin-bottom: 20px;
         }
         .btn-primary:hover {
             transform: translateY(-2px);
@@ -90,10 +92,50 @@
             gap: 8px;
         }
         .section-header::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: var(--border);
+            content: ''; flex: 1; height: 1px; background: var(--border);
+        }
+
+        /* Toggle Switch */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            padding: 12px;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            display: inline-block;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #475569;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px; width: 18px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .toggle-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #fff;
         }
 
         /* Stats Grid */
@@ -149,26 +191,13 @@
             cursor: pointer;
             transition: background 0.2s;
         }
-        .wire-row:hover {
-            background: rgba(255,255,255,0.05);
-            color: #fff;
-        }
+        .wire-row:hover { background: rgba(255,255,255,0.05); color: #fff; }
         .pin-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 20px;
-            height: 20px;
-            background: #334155;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            margin-right: 6px;
-            color: #fff;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px; background: #334155;
+            border-radius: 4px; font-size: 0.75rem; margin-right: 6px; color: #fff;
         }
-        .role-tag {
-            font-weight: bold;
-            margin-right: 4px;
-        }
+        .role-tag { font-weight: bold; margin-right: 4px; }
         .role-G { color: #eab308; }
         .role-S, .role-D { color: var(--accent); }
 
@@ -176,9 +205,8 @@
         #canvas-wrapper {
             flex-grow: 1;
             position: relative;
-            background-color: #020617; /* Very dark slate */
-            background-image: 
-                radial-gradient(#1e293b 1px, transparent 1px);
+            background-color: #020617;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
             background-size: 20px 20px;
             display: flex;
             justify-content: center;
@@ -191,34 +219,36 @@
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
         }
 
-        /* --- Floating Alerts (Toast) --- */
-        #toast-container {
+        /* Edit Mode Indicator on Canvas */
+        #edit-mode-overlay {
             position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(245, 158, 11, 0.15); /* Warning Orange tint */
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            color: #fbbf24;
+            padding: 8px 24px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
             pointer-events: none;
-            width: 300px;
+            display: none;
+            backdrop-filter: blur(4px);
         }
-        
+
+        /* Toasts */
+        #toast-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 300px;
+        }
         .toast {
             background: rgba(15, 23, 42, 0.9);
             backdrop-filter: blur(8px);
-            color: #fff;
-            padding: 12px 20px;
-            border-radius: 50px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
+            color: #fff; padding: 12px 20px; border-radius: 50px;
+            font-size: 0.9rem; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            opacity: 0;
-            transform: translateY(20px);
+            opacity: 0; transform: translateY(20px);
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border: 1px solid rgba(255,255,255,0.1);
         }
@@ -232,6 +262,14 @@
 <div id="sidebar">
     <div class="brand">Bonding Optimizer</div>
     
+    <div class="toggle-container">
+        <label class="toggle-switch">
+            <input type="checkbox" id="chk-move-pads">
+            <span class="slider"></span>
+        </label>
+        <span class="toggle-label">Move Pads (Edit Layout)</span>
+    </div>
+
     <button id="btn-calc" class="btn-primary">Optimize Layout</button>
 
     <div class="section-header">Stats</div>
@@ -261,6 +299,8 @@
 <div id="canvas-wrapper">
     <canvas id="mainCanvas"></canvas>
     
+    <div id="edit-mode-overlay">EDIT MODE: DRAG PADS</div>
+
     <div id="toast-container">
         <div id="toast-cross" class="toast error"><span>⚠️</span> Wire Crossing Detected</div>
         <div id="toast-rf" class="toast error"><span>⚠️</span> Missing RF Connection</div>
@@ -269,7 +309,7 @@
 
 <script>
 /* =========================================
-   Config & Colors
+   Config & Constants
    ========================================= */
 const GRID_SIZE = 12;
 
@@ -280,21 +320,18 @@ const PAD_CONFIG = {
     'LEFT':   [11, 9, 23, 13, 15, 17]
 };
 
-// Stylish Dark/Light Hybrid Colors
 const THEME = {
-    CANVAS_BG: '#ffffff',
     GRID_1: '#f8fafc',
     GRID_2: '#f1f5f9',
     GRID_BORDER: '#334155',
     
-    PAD_G: '#22c55e', // Green
-    PAD_X: '#ef4444', // Red
-    PAD_RF: '#3b82f6', // Blue
-    PAD_TEXT: '#ffffff',
+    PAD_G: '#22c55e', 
+    PAD_X: '#ef4444', 
+    PAD_RF: '#3b82f6',
     
     // Pins
     PIN_OFF: '#cbd5e1',
-    PIN_G: '#eab308', // Yellow
+    PIN_G: '#eab308',
     PIN_RF: '#3b82f6',
     
     // Wires
@@ -304,10 +341,13 @@ const THEME = {
     // Device
     DEV_BODY: 'rgba(71, 85, 105, 0.05)',
     DEV_BORDER: '#64748b',
-    DEV_SEL: '#8b5cf6', // Violet
+    DEV_SEL: '#8b5cf6',
     
     // Highlight
-    HIGHLIGHT: '#d946ef' // Fuchsia
+    HIGHLIGHT: '#d946ef',
+    
+    // Edit Mode
+    EDIT_PAD_BORDER: '#f59e0b'
 };
 
 /* =========================================
@@ -324,49 +364,32 @@ const checkIntersection = (p1, p2, p3, p4) => {
 };
 
 /* =========================================
-   Classes
+   Logic Classes
    ========================================= */
 class DeviceModel {
     constructor(name, w, h, x, y) {
-        this.name = name;
-        this.w = w; this.h = h;
+        this.name = name; this.w = w; this.h = h;
         this.pos = {x, y};
         this.pins = [];
-        
-        // Generate Pins centered
         const xr = Array.from({length:w}, (_,i) => -(w-1)/2 + i);
         const yr = Array.from({length:h}, (_,i) => -(h-1)/2 + i);
-        
-        xr.forEach(px => {
-            yr.forEach(py => {
-                this.pins.push({ rel:{x:px, y:py}, active:true, role:'G' });
-            });
-        });
-        
-        // Sort by Y for default assignments
+        xr.forEach(px => yr.forEach(py => this.pins.push({ rel:{x:px, y:py}, active:true, role:'G' })));
         this.pins.sort((a,b) => a.rel.y - b.rel.y);
-        this.pins[0].role = 'S';
-        this.pins[this.pins.length-1].role = 'D';
+        this.pins[0].role = 'S'; this.pins[this.pins.length-1].role = 'D';
     }
-
     getAbsPins() {
         return this.pins.map((p, i) => ({
-            x: this.pos.x + p.rel.x,
-            y: this.pos.y + p.rel.y,
-            active: p.active, role: p.role,
-            index: i // Local index for display
+            x: this.pos.x + p.rel.x, y: this.pos.y + p.rel.y,
+            active: p.active, role: p.role, index: i
         }));
     }
-
     toggle(i) { this.pins[i].active = !this.pins[i].active; }
-    
     cycle(i) {
         const p = this.pins[i];
         if(p.role === 'G') this.setSmart(i, 'S');
         else if(p.role === 'S') this.setSmart(i, 'D');
         else p.role = 'G';
     }
-    
     setSmart(i, r) {
         if(['S','D'].includes(r)) {
             const old = this.pins.findIndex(p => p.role === r);
@@ -374,7 +397,6 @@ class DeviceModel {
         }
         this.pins[i].role = r;
     }
-    
     snap(max) {
         const s = (v, sz) => (sz%2===0) ? Math.round(v-0.5)+0.5 : Math.round(v);
         this.pos.x = Math.max(0, Math.min(max, s(this.pos.x, this.w)));
@@ -386,7 +408,7 @@ class App {
     constructor() {
         this.canvas = document.getElementById('mainCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.scale = 50; this.margin = 3; 
+        this.scale = 50; 
 
         this.devices = [
             new DeviceModel('SQD', 2, 4, 3.5, 3.5),
@@ -399,9 +421,11 @@ class App {
         this.initPads();
 
         this.lines = [];
-        this.highlightWire = null; // {devIdx, pinIdx} for hover effect
+        this.highlightWire = null;
 
-        this.drag = { active:false, off:{x:0,y:0} };
+        // Interaction State
+        this.isPadEditMode = false;
+        this.drag = { active:false, type:null, idx:-1, off:{x:0,y:0}, hasMoved: false };
 
         this.setup();
         this.resize();
@@ -414,17 +438,9 @@ class App {
         const p = pts(0, max, 6);
         const rp = [...p].reverse();
         const l = -3.0, h = max + 3.0;
-
-        const add = (arr, cfg, axis, val) => {
-            arr.forEach((v, i) => {
-                this.pads.push({ 
-                    x: axis==='x'?v:val, 
-                    y: axis==='y'?v:val, 
-                    lbl: cfg[i] 
-                });
-            });
-        };
-        
+        const add = (arr, cfg, axis, val) => arr.forEach((v, i) => this.pads.push({ 
+            x: axis==='x'?v:val, y: axis==='y'?v:val, lbl: cfg[i] 
+        }));
         add(p, PAD_CONFIG.TOP, 'x', h);
         add(rp, PAD_CONFIG.RIGHT, 'y', h);
         add(rp, PAD_CONFIG.BOTTOM, 'x', l);
@@ -455,7 +471,6 @@ class App {
             ctx.fillStyle = (i/2)%2===0 ? THEME.GRID_1 : THEME.GRID_2;
             ctx.fillRect(x,y,w,h);
         }
-        
         // Border
         const b1 = this.toScr(-0.5, -0.5);
         const b2 = this.toScr(GRID_SIZE-0.5, GRID_SIZE-0.5);
@@ -474,17 +489,18 @@ class App {
             const p = this.toScr(pad.x, pad.y);
             const s = this.padSt[i];
             
-            // Glow for RF
-            if (s===2) {
-                ctx.shadowColor = THEME.PAD_RF; ctx.shadowBlur = 10;
-            } else {
-                ctx.shadowColor = 'rgba(0,0,0,0.1)'; ctx.shadowBlur = 5;
+            // Edit Mode Visuals
+            if (this.isPadEditMode) {
+                ctx.beginPath(); ctx.arc(p.x, p.y, 22, 0, Math.PI*2);
+                ctx.strokeStyle = THEME.EDIT_PAD_BORDER; ctx.lineWidth = 2; ctx.setLineDash([4, 2]); ctx.stroke(); ctx.setLineDash([]);
             }
+
+            if (s===2) { ctx.shadowColor = THEME.PAD_RF; ctx.shadowBlur = 10; } 
+            else { ctx.shadowColor = 'rgba(0,0,0,0.1)'; ctx.shadowBlur = 5; }
             
             ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, Math.PI*2);
             ctx.fillStyle = s===0?THEME.PAD_G : (s===1?THEME.PAD_X : THEME.PAD_RF);
             ctx.fill(); ctx.shadowBlur = 0;
-            
             ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth=2; ctx.stroke();
             
             ctx.fillStyle = '#fff'; ctx.font = 'bold 14px "JetBrains Mono"';
@@ -499,7 +515,6 @@ class App {
             const sel = di===this.selDev;
             
             ctx.save(); ctx.translate(c.x, c.y);
-            
             ctx.fillStyle = THEME.DEV_BODY;
             ctx.strokeStyle = sel ? THEME.DEV_SEL : THEME.DEV_BORDER;
             ctx.lineWidth = sel ? 3 : 2;
@@ -512,34 +527,25 @@ class App {
 
             // Pins
             const hasResult = this.lines.length > 0;
-            
             dev.getAbsPins().forEach((pin, pi) => {
                 const p = this.toScr(pin.x, pin.y);
                 const isRF = ['S','D'].includes(pin.role);
-                
                 ctx.beginPath();
                 if (!pin.active) {
-                    // X shape
                     ctx.strokeStyle = THEME.PIN_OFF; ctx.lineWidth = 3;
                     const r = 5;
                     ctx.moveTo(p.x-r, p.y-r); ctx.lineTo(p.x+r, p.y+r);
-                    ctx.moveTo(p.x+r, p.y-r); ctx.lineTo(p.x-r, p.y+r);
-                    ctx.stroke();
+                    ctx.moveTo(p.x+r, p.y-r); ctx.lineTo(p.x-r, p.y+r); ctx.stroke();
                 } else {
-                    const r = hasResult ? 11 : 8; // Larger if showing numbers
+                    const r = hasResult ? 11 : 8;
                     ctx.arc(p.x, p.y, r, 0, Math.PI*2);
                     ctx.fillStyle = isRF ? THEME.PIN_RF : THEME.PIN_G;
-                    ctx.fill();
-                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-                    
-                    // Show Index or Role
+                    ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
                     ctx.fillStyle = '#fff';
                     if (hasResult) {
-                        ctx.font = 'bold 11px "JetBrains Mono"';
-                        ctx.fillText(pi, p.x, p.y+1); // Show Index
+                        ctx.font = 'bold 11px "JetBrains Mono"'; ctx.fillText(pi, p.x, p.y+1);
                     } else if (isRF) {
-                        ctx.font = 'bold 9px Inter';
-                        ctx.fillText(pin.role, p.x, p.y+1);
+                        ctx.font = 'bold 9px Inter'; ctx.fillText(pin.role, p.x, p.y+1);
                     }
                 }
             });
@@ -549,27 +555,19 @@ class App {
         this.lines.forEach(l => {
             const p1 = this.toScr(l.start.x, l.start.y);
             const p2 = this.toScr(l.end.x, l.end.y);
-            
-            // Check Highlight
-            const isHigh = this.highlightWire && 
-                           this.highlightWire.d === l.devIdx && 
-                           this.highlightWire.p === l.pinIdx;
+            const isHigh = this.highlightWire && this.highlightWire.d === l.devIdx && this.highlightWire.p === l.pinIdx;
 
             ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-            
             ctx.lineCap = 'round';
             if (isHigh) {
-                ctx.lineWidth = 6;
-                ctx.strokeStyle = THEME.HIGHLIGHT;
+                ctx.lineWidth = 6; ctx.strokeStyle = THEME.HIGHLIGHT;
                 ctx.shadowColor = THEME.HIGHLIGHT; ctx.shadowBlur = 15;
             } else {
                 ctx.lineWidth = l.type==='RF'?3.5:2;
                 ctx.strokeStyle = l.type==='RF'?THEME.WIRE_RF : THEME.WIRE_G;
                 ctx.shadowBlur = 0;
             }
-            
-            ctx.globalAlpha = isHigh ? 1.0 : 0.8;
-            ctx.stroke();
+            ctx.globalAlpha = isHigh ? 1.0 : 0.8; ctx.stroke();
             ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
         });
     }
@@ -587,64 +585,99 @@ class App {
         this.draw();
     }
     
-    // --- Solvers & Events (Logic) ---
+    // --- Events ---
     setup() {
         const getM = (e) => {
             const r = this.canvas.getBoundingClientRect();
             return this.toLog(e.clientX-r.left, e.clientY-r.top);
         };
         
+        // Checkbox Handler
+        const chk = document.getElementById('chk-move-pads');
+        chk.addEventListener('change', (e) => {
+            this.isPadEditMode = e.target.checked;
+            document.getElementById('edit-mode-overlay').style.display = this.isPadEditMode ? 'block' : 'none';
+            this.draw();
+        });
+
         this.canvas.addEventListener('mousedown', e => {
             const m = getM(e); let draw = false;
-            
-            // Pins
+
+            // 1. Pad Drag (High Priority if Edit Mode)
+            if (this.isPadEditMode) {
+                let hitPad = -1;
+                this.pads.forEach((p, i) => { if(dist(m.x,m.y,p.x,p.y) < 1.0) hitPad = i; });
+                if (hitPad !== -1) {
+                    this.drag = { active:true, type:'PAD', idx:hitPad, off:{x:this.pads[hitPad].x-m.x, y:this.pads[hitPad].y-m.y}, hasMoved:false };
+                    return;
+                }
+            }
+
+            // 2. Pins (Toggle)
             this.devices.forEach((d, di) => {
                 d.getAbsPins().forEach((p, pi) => {
                     if(dist(m.x, m.y, p.x, p.y) < 0.5) {
-                        if(e.button===0) d.toggle(pi);
-                        this.reset(); draw = true;
+                        if(e.button===0 && !this.isPadEditMode) { d.toggle(pi); this.reset(); draw = true; }
                     }
                 });
             });
             if(draw) return this.draw();
 
-            // Pads
-            this.pads.forEach((p, i) => {
-                if(dist(m.x, m.y, p.x, p.y) < 0.9) {
-                    this.padSt[i] = (this.padSt[i]+1)%3;
-                    this.reset(); draw=true;
-                }
-            });
-            if(draw) return this.draw();
+            // 3. Pads (Toggle - only if NOT editing)
+            if (!this.isPadEditMode) {
+                this.pads.forEach((p, i) => {
+                    if(dist(m.x, m.y, p.x, p.y) < 0.9) {
+                        this.padSt[i] = (this.padSt[i]+1)%3;
+                        this.reset(); draw=true;
+                    }
+                });
+                if(draw) return this.draw();
+            }
 
-            // Drag
-            this.devices.forEach((d, i) => {
-                if(Math.abs(m.x-d.pos.x)<d.w/2 && Math.abs(m.y-d.pos.y)<d.h/2) {
-                    this.selDev = i; this.drag = {active:true, off:{x:d.pos.x-m.x, y:d.pos.y-m.y}};
-                    this.reset(); this.draw();
-                }
-            });
+            // 4. Device Drag
+            if (!this.isPadEditMode) {
+                this.devices.forEach((d, i) => {
+                    if(Math.abs(m.x-d.pos.x)<d.w/2 && Math.abs(m.y-d.pos.y)<d.h/2) {
+                        this.selDev = i; 
+                        this.drag = {active:true, type:'DEV', idx:i, off:{x:d.pos.x-m.x, y:d.pos.y-m.y}, hasMoved:false};
+                        this.reset(); this.draw();
+                    }
+                });
+            }
         });
         
         this.canvas.addEventListener('mousemove', e => {
             if(this.drag.active) {
                 const m = getM(e);
-                const d = this.devices[this.selDev];
-                d.pos.x = m.x + this.drag.off.x; d.pos.y = m.y + this.drag.off.y;
+                this.drag.hasMoved = true;
+                
+                if (this.drag.type === 'DEV') {
+                    const d = this.devices[this.drag.idx];
+                    d.pos.x = m.x + this.drag.off.x; d.pos.y = m.y + this.drag.off.y;
+                } else if (this.drag.type === 'PAD') {
+                    const p = this.pads[this.drag.idx];
+                    p.x = m.x + this.drag.off.x; p.y = m.y + this.drag.off.y;
+                    this.reset(); // Reset lines if pads move
+                }
                 this.draw();
             }
         });
         
         this.canvas.addEventListener('mouseup', () => {
             if(this.drag.active) {
+                if (this.drag.type === 'DEV') {
+                    this.devices[this.drag.idx].snap(GRID_SIZE-1);
+                }
+                // If it was a pad drag but didn't move (just clicked) in Edit Mode, we do nothing.
                 this.drag.active = false;
-                this.devices[this.selDev].snap(GRID_SIZE-1);
                 this.draw();
             }
         });
         
         this.canvas.addEventListener('contextmenu', e => {
-            e.preventDefault(); const m = getM(e);
+            e.preventDefault(); 
+            if (this.isPadEditMode) return; // Disable right click context in edit mode for safety
+            const m = getM(e);
             this.devices.forEach(d => {
                 d.getAbsPins().forEach((p, pi) => {
                     if(dist(m.x, m.y, p.x, p.y)<0.5) {
@@ -655,14 +688,10 @@ class App {
         });
         
         document.getElementById('btn-calc').addEventListener('click', () => {
-             // UI Button Loading
             const btn = document.getElementById('btn-calc');
             const orig = btn.innerHTML;
             btn.innerHTML = 'Calculating...';
-            setTimeout(() => {
-                this.optimize();
-                btn.innerHTML = orig;
-            }, 50);
+            setTimeout(() => { this.optimize(); btn.innerHTML = orig; }, 50);
         });
     }
 
@@ -674,7 +703,6 @@ class App {
     }
 
     optimize() {
-        // Collect Data
         let pins = [];
         this.devices.forEach((d, di) => {
             d.getAbsPins().forEach((p, pi) => {
@@ -689,34 +717,24 @@ class App {
         const N = pins.length;
         if(N===0) return;
 
-        // Logic: Allowed Pads
-        const allowed = pins.map(pn => pads.filter(pd => 
-            pn.role==='G' ? pd.st===0 : true
-        ).map(pd => pd.idx));
+        const allowed = pins.map(pn => pads.filter(pd => pn.role==='G' ? pd.st===0 : true).map(pd => pd.idx));
 
-        // Cost Function
         const getCost = (assign) => {
             let segs = [], len=0, missPref=0, devHasRF=new Array(this.devices.length).fill(false);
-            
             assign.forEach((pid, i) => {
                 if(pid===-1) return;
-                const pn = pins[i];
-                const pd = this.pads[pid];
+                const pn = pins[i], pd = this.pads[pid];
                 len += dist(pn.x, pn.y, pd.x, pd.y);
                 segs.push({p1:pn, p2:pd});
-                
                 if(['S','D'].includes(pn.role)) {
-                    if(this.padSt[pid]===2) devHasRF[pn.devIdx] = true;
-                    else missPref++;
+                    if(this.padSt[pid]===2) devHasRF[pn.devIdx] = true; else missPref++;
                 }
             });
-            
             let crit=0;
             this.devices.forEach((_, di) => {
                 const activeRF = pins.some(p => p.devIdx===di && ['S','D'].includes(p.role));
                 if(activeRF && !devHasRF[di]) crit++;
             });
-            
             let cross=0;
             for(let i=0; i<segs.length; i++) for(let j=i+1; j<segs.length; j++)
                 if(checkIntersection(segs[i].p1, segs[i].p2, segs[j].p1, segs[j].p2)) cross++;
@@ -724,18 +742,14 @@ class App {
             return { val: crit*5e6 + cross*1e6 + missPref*1e4 + len, crit, cross, len };
         };
 
-        // Greedy Init
         const ord = pins.map((_,i)=>i).sort((a,b) => {
-            const ra = pins[a].role!=='G', rb = pins[b].role!=='G';
-            return (ra===rb) ? 0 : (ra?-1:1);
+            const ra = pins[a].role!=='G', rb = pins[b].role!=='G'; return (ra===rb) ? 0 : (ra?-1:1);
         });
         
         let assign = new Array(N).fill(-1);
         let used = new Set();
-        
         ord.forEach(i => {
-            let best=-1, min=Infinity;
-            const isRF = pins[i].role!=='G';
+            let best=-1, min=Infinity; const isRF = pins[i].role!=='G';
             allowed[i].forEach(pid => {
                 if(used.has(pid)) return;
                 let d = dist(pins[i].x, pins[i].y, this.pads[pid].x, this.pads[pid].y);
@@ -745,13 +759,10 @@ class App {
             if(best!==-1) { assign[i]=best; used.add(best); }
         });
 
-        // Loop
         let cost = getCost(assign);
         let imp = true, loops=0;
-        
-        while(imp && loops < 300) {
+        while(imp && loops < 400) {
             imp=false; loops++;
-            // Swap
             for(let i=0; i<N; i++) for(let j=i+1; j<N; j++) {
                 const p1=assign[i], p2=assign[j];
                 if(p1===-1 || p2===-1) continue;
@@ -761,103 +772,71 @@ class App {
                 if(nc.val < cost.val - 0.001) { cost=nc; imp=true; }
                 else { assign[i]=p1; assign[j]=p2; }
             }
-            // Move
             const uList = pads.map(p=>p.idx).filter(pid => !new Set(assign).has(pid));
             for(let i=0; i<N; i++) {
-                const curr = assign[i];
-                if(curr===-1) continue;
+                const curr = assign[i]; if(curr===-1) continue;
                 for(let k=0; k<uList.length; k++) {
                     const next = uList[k];
                     if(allowed[i].includes(next)) {
-                        assign[i]=next;
-                        const nc = getCost(assign);
-                        if(nc.val < cost.val - 0.001) {
-                            cost=nc; imp=true; 
-                            uList[k]=curr; // swap unused
-                            break;
-                        } else assign[i]=curr;
+                        assign[i]=next; const nc = getCost(assign);
+                        if(nc.val < cost.val - 0.001) { cost=nc; imp=true; uList[k]=curr; break; } 
+                        else assign[i]=curr;
                     }
                 }
             }
         }
 
-        // Finalize
         this.lines = [];
         assign.forEach((pid, i) => {
             if(pid!==-1) {
-                const pn = pins[i];
-                const pd = this.pads[pid];
+                const pn = pins[i], pd = this.pads[pid];
                 this.lines.push({
                     start:{x:pn.x,y:pn.y}, end:{x:pd.x,y:pd.y},
                     type: ['S','D'].includes(pn.role)&&this.padSt[pid]===2 ? 'RF' : 'Gate',
-                    devIdx: pn.devIdx, pinIdx: pn.pinIdx, role: pn.role, padLbl: pd.lbl,
-                    devName: pn.devName
+                    devIdx: pn.devIdx, pinIdx: pn.pinIdx, role: pn.role, padLbl: pd.lbl
                 });
             }
         });
-
-        this.updateUI(cost);
-        this.draw();
+        this.updateUI(cost); this.draw();
     }
 
     updateUI(cost) {
-        // Stats
-        const el = (id, v, bad) => {
-            const d = document.getElementById(id);
-            d.innerText = v; d.className = 'stat-val ' + (bad?'bad':'good');
-        };
+        const el = (id, v, bad) => { const d = document.getElementById(id); d.innerText = v; d.className = 'stat-val ' + (bad?'bad':'good'); };
         el('val-cross', cost.cross, cost.cross>0);
         el('val-crit', cost.crit, cost.crit>0);
         document.getElementById('val-len').innerText = cost.len.toFixed(1);
-
-        // Toasts
+        
         const tCross = document.getElementById('toast-cross');
         const tRf = document.getElementById('toast-rf');
         tCross.classList.toggle('show', cost.cross > 0);
         tRf.classList.toggle('show', cost.crit > 0);
 
-        // List
         const list = document.getElementById('connection-list');
         list.innerHTML = '';
-        
         this.devices.forEach((d, di) => {
             const lns = this.lines.filter(l => l.devIdx === di);
             if(lns.length===0) return;
-            
-            // Sort: Index order
             lns.sort((a,b) => a.pinIdx - b.pinIdx);
             
             const div = document.createElement('div');
-            // Check errors
             const rfErr = (lns.some(l=>['S','D'].includes(l.role)) && !lns.some(l=>l.type==='RF'));
             div.className = 'dev-card' + (rfErr ? ' error' : '');
-            
-            let html = `<div class="dev-title">
-                <span>${d.name}</span>
-                ${rfErr ? '<span style="color:#ef4444;font-size:0.7rem">NO RF</span>' : ''}
-            </div>`;
-            
+            let html = `<div class="dev-title"><span>${d.name}</span>${rfErr ? '<span style="color:#ef4444;font-size:0.7rem">NO RF</span>' : ''}</div>`;
             lns.forEach(l => {
                 const rClass = l.role==='G' ? 'role-G' : 'role-S';
                 html += `
-                <div class="wire-row" 
-                     onmouseenter="app.setHighlight(${l.devIdx}, ${l.pinIdx})"
-                     onmouseleave="app.setHighlight(null, null)">
-                    <div>
-                        <span class="pin-badge">${l.pinIdx}</span>
-                        <span class="role-tag ${rClass}">${l.role}</span>
-                    </div>
+                <div class="wire-row" onmouseenter="app.setHighlight(${l.devIdx}, ${l.pinIdx})" onmouseleave="app.setHighlight(null, null)">
+                    <div><span class="pin-badge">${l.pinIdx}</span><span class="role-tag ${rClass}">${l.role}</span></div>
                     <div style="color:#fff">Pad ${l.padLbl}</div>
                 </div>`;
             });
-            div.innerHTML = html;
-            list.appendChild(div);
+            div.innerHTML = html; list.appendChild(div);
         });
     }
 }
 
 const app = new App();
-window.app = app; // Expose for inline events
+window.app = app;
 </script>
 </body>
 </html>
