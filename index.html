@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bonding Layout Optimizer: Save/Load</title>
+    <title>Bonding Layout Optimizer: Final v2</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -102,6 +102,26 @@
         input:checked + .slider:before { transform: translateX(20px); }
         .toggle-label { font-size: 0.9rem; font-weight: 600; color: #fff; }
 
+        /* Small Toggle for Devices */
+        .device-toggles {
+            display: flex; gap: 15px; padding: 10px; 
+            background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border);
+            margin-bottom: 10px;
+        }
+        .mini-switch-container { display: flex; align-items: center; gap: 8px; }
+        .mini-switch { position: relative; width: 36px; height: 20px; display: inline-block; }
+        .mini-switch input { opacity: 0; width: 0; height: 0; }
+        .mini-slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #475569; transition: .3s; border-radius: 20px;
+        }
+        .mini-slider:before {
+            position: absolute; content: ""; height: 14px; width: 14px;
+            left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .mini-slider { background-color: var(--success); }
+        input:checked + .mini-slider:before { transform: translateX(16px); }
+
         /* Stats */
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .stat-item { background: var(--bg-panel); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
@@ -184,6 +204,24 @@
         <button class="btn-outline" id="btn-rod-donald" onclick="app.loadRod('Donald')">Donald</button>
     </div>
 
+    <div class="section-header">Active Devices</div>
+    <div class="device-toggles">
+        <div class="mini-switch-container">
+            <label class="mini-switch">
+                <input type="checkbox" id="chk-dev-sqd" checked onchange="app.toggleDevice(0)">
+                <span class="mini-slider"></span>
+            </label>
+            <span style="font-size:0.85rem;font-weight:600">SQD</span>
+        </div>
+        <div class="mini-switch-container">
+            <label class="mini-switch">
+                <input type="checkbox" id="chk-dev-dqd" checked onchange="app.toggleDevice(1)">
+                <span class="mini-slider"></span>
+            </label>
+            <span style="font-size:0.85rem;font-weight:600">DQD</span>
+        </div>
+    </div>
+
     <div class="section-header">Save / Load</div>
     <button class="btn-secondary" onclick="app.exportState()">Export Config (Copy)</button>
     <button class="btn-secondary" onclick="app.importState()">Import Config (Paste)</button>
@@ -245,7 +283,8 @@ const ROD_PRESETS = {
             'BOTTOM': [12,2,3,4,8,22],
             'LEFT':   [11,9,23,13,15,17]
         },
-        broken: [1,4,7,12,16] 
+        broken: [1,4,7,12,16],
+        rf: [] // 必要ならここにRFパッドのインデックス(0-23)を追記
     },
     'Belle': {
         labels: {
@@ -254,7 +293,8 @@ const ROD_PRESETS = {
             'BOTTOM': [13,23,9,7,5,16],
             'LEFT':   [14,3,2,12,21,20]
         },
-        broken: [0,10,11,21] 
+        broken: [0,10,11,21],
+        rf: [] 
     },
     'Donald': {
         labels: {
@@ -263,7 +303,8 @@ const ROD_PRESETS = {
             'BOTTOM': [12,14,404,18,404,404],
             'LEFT':   [404,404,11,13,404,19]
         },
-        broken: [4,5,7,14,16,17,18,19,22] 
+        broken: [4,5,7,14,16,17,18,19,22],
+        rf: []
     }
 };
 
@@ -302,12 +343,15 @@ const checkIntersection = (p1, p2, p3, p4) => {
    LOGIC: OPTIMIZER (Simulated Annealing)
    ========================================= */
 class LayoutOptimizer {
-    constructor(devices, pads, padStatus) {
+    constructor(devices, pads, padStatus, deviceActive) {
         this.pins = [];
         this.pads = []; 
         this.deviceGroups = {}; 
 
         devices.forEach((d, dIdx) => {
+            // Check if device is enabled
+            if (!deviceActive[dIdx]) return;
+
             this.deviceGroups[dIdx] = [];
             d.getAbsPins().forEach((p) => {
                 if (p.active) {
@@ -567,6 +611,8 @@ class App {
             new DeviceModel('SQD', 2, 4, 3.5, 3.5),
             new DeviceModel('DQD', 2, 5, 7.5, 7.0)
         ];
+        this.deviceActive = [true, true]; // Devices On/Off state
+
         this.selDev = 0;
         this.pads = []; 
         this.padSt = new Array(24).fill(0);
@@ -624,12 +670,25 @@ class App {
         });
 
         this.padSt.fill(0); 
+        // Apply Broken (Red)
         if (config.broken) {
             config.broken.forEach(idx => {
                 if (idx >= 0 && idx < 24) this.padSt[idx] = 1; 
             });
         }
+        // Apply RF (Blue)
+        if (config.rf) {
+            config.rf.forEach(idx => {
+                if (idx >= 0 && idx < 24) this.padSt[idx] = 2;
+            });
+        }
 
+        this.reset();
+        this.draw();
+    }
+
+    toggleDevice(idx) {
+        this.deviceActive[idx] = !this.deviceActive[idx];
         this.reset();
         this.draw();
     }
@@ -639,10 +698,11 @@ class App {
         const state = {
             devices: this.devices.map(d => ({
                 name: d.name, w: d.w, h: d.h, pos: d.pos,
-                pins: d.pins // ピンの配列(role等を含む)を保存
+                pins: d.pins 
             })),
-            pads: this.pads, // パッドの位置とラベルを保存
-            padSt: this.padSt // パッドの状態(Broken/RF/Gate)を保存
+            pads: this.pads, 
+            padSt: this.padSt,
+            deviceActive: this.deviceActive // Save active state
         };
         const json = JSON.stringify(state);
         
@@ -663,24 +723,24 @@ class App {
         try {
             const state = JSON.parse(json);
             
-            // Restore Pads & Status
             if (state.pads) this.pads = state.pads;
             if (state.padSt) this.padSt = state.padSt;
+            if (state.deviceActive) {
+                this.deviceActive = state.deviceActive;
+                document.getElementById('chk-dev-sqd').checked = this.deviceActive[0];
+                document.getElementById('chk-dev-dqd').checked = this.deviceActive[1];
+            }
 
-            // Restore Devices (Re-instantiate to keep methods)
             if (state.devices) {
                 this.devices = state.devices.map(d => {
                     const dev = new DeviceModel(d.name, d.w, d.h, d.pos.x, d.pos.y);
-                    // 上書きされたピン設定を適用
                     if (d.pins) dev.pins = d.pins;
                     return dev;
                 });
             }
 
-            // Reset selection to avoid errors
             this.selDev = 0;
             
-            // Clear Rod selection UI
             ['Ariel', 'Belle', 'Donald'].forEach(name => {
                 document.getElementById('btn-rod-' + name.toLowerCase()).classList.remove('active');
             });
@@ -753,6 +813,9 @@ class App {
 
         // Devices
         this.devices.forEach((dev, di) => {
+            // Active check
+            if (!this.deviceActive[di]) return;
+
             const c = this.toScr(dev.pos.x, dev.pos.y);
             const w = dev.w*this.scale, h = dev.h*this.scale;
             const sel = di===this.selDev;
@@ -846,6 +909,7 @@ class App {
                 }
             }
             this.devices.forEach((d, di) => {
+                if (!this.deviceActive[di]) return; // Skip inactive
                 d.getAbsPins().forEach((p, pi) => {
                     if(dist(m.x, m.y, p.x, p.y) < 0.5) {
                         if(e.button===0 && !this.isPadEditMode) { d.toggle(pi); this.reset(); draw = true; }
@@ -863,6 +927,7 @@ class App {
             }
             if (!this.isPadEditMode) {
                 this.devices.forEach((d, i) => {
+                    if (!this.deviceActive[i]) return; // Skip inactive
                     if(Math.abs(m.x-d.pos.x)<d.w/2 && Math.abs(m.y-d.pos.y)<d.h/2) {
                         this.selDev = i; this.drag = {active:true, type:'DEV', idx:i, off:{x:d.pos.x-m.x, y:d.pos.y-m.y}};
                         this.reset(); this.draw();
@@ -896,7 +961,8 @@ class App {
         this.canvas.addEventListener('contextmenu', e => {
             e.preventDefault(); if (this.isPadEditMode) return;
             const m = getM(e);
-            this.devices.forEach(d => {
+            this.devices.forEach((d, di) => {
+                if (!this.deviceActive[di]) return; // Skip inactive
                 d.getAbsPins().forEach((p, pi) => {
                     if(dist(m.x, m.y, p.x, p.y)<0.5) { d.cycle(pi); this.reset(); this.draw(); }
                 });
@@ -907,7 +973,8 @@ class App {
             const btn = document.getElementById('btn-calc'); const orig = btn.innerHTML;
             btn.innerHTML = 'Calculating (SA)...';
             setTimeout(() => { 
-                const optimizer = new LayoutOptimizer(this.devices, this.pads, this.padSt);
+                // Pass active state to optimizer
+                const optimizer = new LayoutOptimizer(this.devices, this.pads, this.padSt, this.deviceActive);
                 const res = optimizer.solve();
                 this.lines = res.lines;
                 this.updateUI(res.stats);
@@ -937,6 +1004,9 @@ class App {
         const list = document.getElementById('connection-list');
         list.innerHTML = '';
         this.devices.forEach((d, di) => {
+            // Skip UI for inactive
+            if (!this.deviceActive[di]) return;
+
             const lns = this.lines.filter(l => l.devIdx === di);
             if(lns.length===0) return;
             lns.sort((a,b) => a.pinIdx - b.pinIdx);
