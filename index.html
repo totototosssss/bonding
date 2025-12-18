@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bonding Layout Optimizer: Final</title>
+    <title>Bonding Layout Optimizer: Save/Load</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -55,6 +55,15 @@
         }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px var(--accent-glow); }
         .btn-primary:active { transform: translateY(0); }
+
+        .btn-secondary {
+            width: 100%; padding: 10px;
+            background: rgba(255,255,255,0.05);
+            color: var(--text-muted); border: 1px solid var(--border);
+            border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; margin-bottom: 8px;
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: var(--text-muted); }
 
         .section-header {
             font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
@@ -160,6 +169,7 @@
         }
         .toast.show { opacity: 1; transform: translateY(0); }
         .toast.error { border-color: var(--danger); color: #fca5a5; }
+        .toast.success { border-color: var(--success); color: #86efac; }
     </style>
 </head>
 <body>
@@ -174,6 +184,11 @@
         <button class="btn-outline" id="btn-rod-donald" onclick="app.loadRod('Donald')">Donald</button>
     </div>
 
+    <div class="section-header">Save / Load</div>
+    <button class="btn-secondary" onclick="app.exportState()">Export Config (Copy)</button>
+    <button class="btn-secondary" onclick="app.importState()">Import Config (Paste)</button>
+
+    <div class="section-header">Controls</div>
     <div class="toggle-container">
         <label class="toggle-switch">
             <input type="checkbox" id="chk-move-pads">
@@ -214,47 +229,44 @@
     <div id="toast-container">
         <div id="toast-cross" class="toast error"><span>⚠️</span> Wire Crossing Detected</div>
         <div id="toast-rf" class="toast error"><span>⚠️</span> Missing RF Connection</div>
+        <div id="toast-copy" class="toast success"><span>📋</span> Config Copied!</div>
     </div>
 </div>
 
 <script>
 /* =========================================
-   ROD CONFIGURATION (EDIT HERE)
+   ROD CONFIGURATION
    ========================================= */
-// 各Rodのパッド番号定義と、故障箇所(broken)のインデックス
-// 配列の順序: TOP(0-5), RIGHT(6-11), BOTTOM(12-17), LEFT(18-23)
 const ROD_PRESETS = {
     'Ariel': {
         labels: {
-            'TOP':    [1, 2, 3, 4, 5, 6],
-            'RIGHT':  [7, 8, 9, 10, 11, 12],
-            'BOTTOM': [13, 14, 15, 16, 17, 18],
-            'LEFT':   [19, 20, 21, 22, 23, 24]
+            'TOP':    [6,10,24,7,5,16],
+            'RIGHT':  [1,14,18,19,20,21],
+            'BOTTOM': [12,2,3,4,8,22],
+            'LEFT':   [11,9,23,13,15,17]
         },
-        // 壊れているパッドのインデックス(0〜23)。ここは赤色のパッドになります。
-        broken: [0, 5, 12, 23] 
+        broken: [1,4,7,12,16] 
     },
     'Belle': {
         labels: {
-            'TOP':    [24, 23, 22, 21, 20, 19],
-            'RIGHT':  [18, 17, 16, 15, 14, 13],
-            'BOTTOM': [12, 11, 10, 9, 8, 7],
-            'LEFT':   [6, 5, 4, 3, 2, 1]
+            'TOP':    [19,18,1,4,8,22],
+            'RIGHT':  [24,11,10,6,17,15],
+            'BOTTOM': [13,23,9,7,5,16],
+            'LEFT':   [14,3,2,12,21,20]
         },
-        broken: [2, 3, 15] // 別の故障箇所
+        broken: [0,10,11,21] 
     },
     'Donald': {
         labels: {
-            'TOP':    [101, 102, 103, 104, 105, 106],
-            'RIGHT':  [201, 202, 203, 204, 205, 206],
-            'BOTTOM': [301, 302, 303, 304, 305, 306],
-            'LEFT':   [401, 402, 403, 404, 405, 406]
+            'TOP':    [19,21,24,7,404,404],
+            'RIGHT':  [1,404,4,6,8,10],
+            'BOTTOM': [12,14,404,18,404,404],
+            'LEFT':   [404,404,11,13,404,19]
         },
-        broken: [6, 7, 8, 9, 10, 11] // 右側全部壊れている等
+        broken: [4,5,7,14,16,17,18,19,22] 
     }
 };
 
-// デフォルトの設定（何も選択されていない時）
 const DEFAULT_PAD_CONFIG = {
     'TOP':    [6, 10, 24, 7, 5, 16],
     'RIGHT':  [1, 14, 18, 19, 20, 21],
@@ -314,7 +326,7 @@ class LayoutOptimizer {
 
         pads.forEach((p, i) => {
             const st = padStatus[i];
-            if (st !== 1) { // 1 = Forbidden/Broken
+            if (st !== 1) { 
                 this.pads.push({
                     idx: this.pads.length,
                     origIdx: i,
@@ -558,7 +570,7 @@ class App {
         this.selDev = 0;
         this.pads = []; 
         this.padSt = new Array(24).fill(0);
-        this.initPads(); // 初期パッド生成
+        this.initPads(); 
 
         this.lines = [];
         this.highlightWire = null;
@@ -570,7 +582,6 @@ class App {
         window.addEventListener('resize', () => this.resize());
     }
 
-    // 初期化：パッドの位置情報を生成（ラベルは後で上書き可能）
     initPads() {
         this.pads = [];
         const max = GRID_SIZE-1;
@@ -579,7 +590,6 @@ class App {
         const rp = [...p].reverse();
         const l = -3.0, h = max + 3.0;
 
-        // デフォルト設定を使って初期化
         const add = (arr, cfg, axis, val) => arr.forEach((v, i) => this.pads.push({ 
             x: axis==='x'?v:val, y: axis==='y'?v:val, lbl: cfg[i] 
         }));
@@ -590,24 +600,19 @@ class App {
         add(p, DEFAULT_PAD_CONFIG.LEFT, 'y', l);
     }
 
-    // Rod選択機能
     loadRod(rodName) {
         const config = ROD_PRESETS[rodName];
         if (!config) return;
 
-        // ボタンのUI更新
         ['Ariel', 'Belle', 'Donald'].forEach(name => {
             const btn = document.getElementById('btn-rod-' + name.toLowerCase());
             if (name === rodName) btn.classList.add('active');
             else btn.classList.remove('active');
         });
 
-        // パッドのラベルとステータスを更新
-        // pads配列の順序: TOP(0-5), RIGHT(6-11), BOTTOM(12-17), LEFT(18-23)
         let padIndex = 0;
         const sides = ['TOP', 'RIGHT', 'BOTTOM', 'LEFT'];
         
-        // 1. ラベル更新
         sides.forEach(side => {
             const labels = config.labels[side];
             labels.forEach(lbl => {
@@ -618,18 +623,76 @@ class App {
             });
         });
 
-        // 2. 故障箇所(status=1)の更新
-        this.padSt.fill(0); // リセット
+        this.padSt.fill(0); 
         if (config.broken) {
             config.broken.forEach(idx => {
-                if (idx >= 0 && idx < 24) this.padSt[idx] = 1; // 1 = Broken/Forbidden
+                if (idx >= 0 && idx < 24) this.padSt[idx] = 1; 
             });
         }
 
-        // リセットして再描画
         this.reset();
         this.draw();
     }
+
+    /* ================= SAVE / LOAD FUNCTIONALITY ================= */
+    exportState() {
+        const state = {
+            devices: this.devices.map(d => ({
+                name: d.name, w: d.w, h: d.h, pos: d.pos,
+                pins: d.pins // ピンの配列(role等を含む)を保存
+            })),
+            pads: this.pads, // パッドの位置とラベルを保存
+            padSt: this.padSt // パッドの状態(Broken/RF/Gate)を保存
+        };
+        const json = JSON.stringify(state);
+        
+        navigator.clipboard.writeText(json).then(() => {
+            const t = document.getElementById('toast-copy');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }).catch(err => {
+            alert('Clipboard access denied. Check console for data.');
+            console.log(json);
+        });
+    }
+
+    importState() {
+        const json = prompt("Paste the configuration string here:");
+        if (!json) return;
+
+        try {
+            const state = JSON.parse(json);
+            
+            // Restore Pads & Status
+            if (state.pads) this.pads = state.pads;
+            if (state.padSt) this.padSt = state.padSt;
+
+            // Restore Devices (Re-instantiate to keep methods)
+            if (state.devices) {
+                this.devices = state.devices.map(d => {
+                    const dev = new DeviceModel(d.name, d.w, d.h, d.pos.x, d.pos.y);
+                    // 上書きされたピン設定を適用
+                    if (d.pins) dev.pins = d.pins;
+                    return dev;
+                });
+            }
+
+            // Reset selection to avoid errors
+            this.selDev = 0;
+            
+            // Clear Rod selection UI
+            ['Ariel', 'Belle', 'Donald'].forEach(name => {
+                document.getElementById('btn-rod-' + name.toLowerCase()).classList.remove('active');
+            });
+
+            this.reset();
+            this.draw();
+        } catch (e) {
+            alert("Invalid Configuration String");
+            console.error(e);
+        }
+    }
+    /* ============================================================= */
 
     toScr(lx, ly) {
         const cx = this.canvas.width/2, cy = this.canvas.height/2;
@@ -774,7 +837,6 @@ class App {
 
         this.canvas.addEventListener('mousedown', e => {
             const m = getM(e); let draw = false;
-            // 1. Pad Drag (Edit Mode)
             if (this.isPadEditMode) {
                 let hitPad = -1;
                 this.pads.forEach((p, i) => { if(dist(m.x,m.y,p.x,p.y) < 1.0) hitPad = i; });
@@ -783,7 +845,6 @@ class App {
                     return;
                 }
             }
-            // 2. Pins
             this.devices.forEach((d, di) => {
                 d.getAbsPins().forEach((p, pi) => {
                     if(dist(m.x, m.y, p.x, p.y) < 0.5) {
@@ -792,7 +853,6 @@ class App {
                 });
             });
             if(draw) return this.draw();
-            // 3. Pads Toggle
             if (!this.isPadEditMode) {
                 this.pads.forEach((p, i) => {
                     if(dist(m.x, m.y, p.x, p.y) < 0.9) {
@@ -801,7 +861,6 @@ class App {
                 });
                 if(draw) return this.draw();
             }
-            // 4. Device Drag
             if (!this.isPadEditMode) {
                 this.devices.forEach((d, i) => {
                     if(Math.abs(m.x-d.pos.x)<d.w/2 && Math.abs(m.y-d.pos.y)<d.h/2) {
