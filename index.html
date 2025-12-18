@@ -63,6 +63,17 @@
         }
         .section-header::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
+        /* Rod Selection Buttons */
+        .btn-group { display: flex; gap: 8px; margin-bottom: 10px; }
+        .btn-outline {
+            flex: 1; padding: 10px; background: transparent;
+            border: 1px solid var(--border); color: var(--text-muted);
+            border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-outline:hover { border-color: var(--accent); color: #fff; background: rgba(255,255,255,0.05); }
+        .btn-outline.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 10px var(--accent-glow); }
+
         /* Toggle */
         .toggle-container {
             display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
@@ -156,6 +167,13 @@
 <div id="sidebar">
     <div class="brand">Bonding Optimizer</div>
     
+    <div class="section-header">Select Rod</div>
+    <div class="btn-group">
+        <button class="btn-outline" id="btn-rod-ariel" onclick="app.loadRod('Ariel')">Ariel</button>
+        <button class="btn-outline" id="btn-rod-belle" onclick="app.loadRod('Belle')">Belle</button>
+        <button class="btn-outline" id="btn-rod-donald" onclick="app.loadRod('Donald')">Donald</button>
+    </div>
+
     <div class="toggle-container">
         <label class="toggle-switch">
             <input type="checkbox" id="chk-move-pads">
@@ -201,17 +219,50 @@
 
 <script>
 /* =========================================
-   CONSTANTS & THEME
+   ROD CONFIGURATION (EDIT HERE)
    ========================================= */
-const GRID_SIZE = 12;
+// 各Rodのパッド番号定義と、故障箇所(broken)のインデックス
+// 配列の順序: TOP(0-5), RIGHT(6-11), BOTTOM(12-17), LEFT(18-23)
+const ROD_PRESETS = {
+    'Ariel': {
+        labels: {
+            'TOP':    [1, 2, 3, 4, 5, 6],
+            'RIGHT':  [7, 8, 9, 10, 11, 12],
+            'BOTTOM': [13, 14, 15, 16, 17, 18],
+            'LEFT':   [19, 20, 21, 22, 23, 24]
+        },
+        // 壊れているパッドのインデックス(0〜23)。ここは赤色のパッドになります。
+        broken: [0, 5, 12, 23] 
+    },
+    'Belle': {
+        labels: {
+            'TOP':    [24, 23, 22, 21, 20, 19],
+            'RIGHT':  [18, 17, 16, 15, 14, 13],
+            'BOTTOM': [12, 11, 10, 9, 8, 7],
+            'LEFT':   [6, 5, 4, 3, 2, 1]
+        },
+        broken: [2, 3, 15] // 別の故障箇所
+    },
+    'Donald': {
+        labels: {
+            'TOP':    [101, 102, 103, 104, 105, 106],
+            'RIGHT':  [201, 202, 203, 204, 205, 206],
+            'BOTTOM': [301, 302, 303, 304, 305, 306],
+            'LEFT':   [401, 402, 403, 404, 405, 406]
+        },
+        broken: [6, 7, 8, 9, 10, 11] // 右側全部壊れている等
+    }
+};
 
-// Initial Pad Configuration
-const PAD_CONFIG = {
+// デフォルトの設定（何も選択されていない時）
+const DEFAULT_PAD_CONFIG = {
     'TOP':    [6, 10, 24, 7, 5, 16],
     'RIGHT':  [1, 14, 18, 19, 20, 21],
     'BOTTOM': [12, 2, 3, 4, 8, 22],
     'LEFT':   [11, 9, 23, 13, 15, 17]
 };
+
+const GRID_SIZE = 12;
 
 const THEME = {
     GRID_1: '#f8fafc', GRID_2: '#f1f5f9', GRID_BORDER: '#334155',
@@ -227,13 +278,11 @@ const THEME = {
    ========================================= */
 const dist = (x1, y1, x2, y2) => Math.sqrt((x1-x2)**2 + (y1-y2)**2);
 
-// Robust intersection check (avoid 0.001 edge cases if possible, but sufficient here)
 const checkIntersection = (p1, p2, p3, p4) => {
     const d = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
-    if (Math.abs(d) < 1e-9) return false; // Parallel
+    if (Math.abs(d) < 1e-9) return false; 
     const u = ((p3.x - p1.x) * (p4.y - p3.y) - (p3.y - p1.y) * (p4.x - p3.x)) / d;
     const v = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / d;
-    // Strict interior intersection to allow sharing start/end points if needed
     return (u > 0.001 && u < 0.999) && (v > 0.001 && v < 0.999);
 };
 
@@ -242,12 +291,10 @@ const checkIntersection = (p1, p2, p3, p4) => {
    ========================================= */
 class LayoutOptimizer {
     constructor(devices, pads, padStatus) {
-        // Prepare Data Structures (Separate ID from Index)
         this.pins = [];
-        this.pads = []; // Available pads only
-        this.deviceGroups = {}; // devIdx -> [pinIndex]
+        this.pads = []; 
+        this.deviceGroups = {}; 
 
-        // 1. Flatten Active Pins
         devices.forEach((d, dIdx) => {
             this.deviceGroups[dIdx] = [];
             d.getAbsPins().forEach((p) => {
@@ -256,7 +303,7 @@ class LayoutOptimizer {
                     this.pins.push({
                         idx: idx,
                         x: p.x, y: p.y,
-                        role: p.role, // 'G', 'S', 'D'
+                        role: p.role, 
                         devIdx: dIdx,
                         origPinIdx: p.index
                     });
@@ -265,23 +312,20 @@ class LayoutOptimizer {
             });
         });
 
-        // 2. Flatten Available Pads
         pads.forEach((p, i) => {
             const st = padStatus[i];
-            if (st !== 1) { // Not Forbidden
+            if (st !== 1) { // 1 = Forbidden/Broken
                 this.pads.push({
                     idx: this.pads.length,
                     origIdx: i,
                     x: p.x, y: p.y,
-                    status: st, // 0:Gate, 2:RF
+                    status: st, 
                     lbl: p.lbl
                 });
             }
         });
 
-        // 3. Pre-calculate Allowed Pads per Pin (Cache)
         this.allowedPads = this.pins.map(pin => {
-            // Gate pins -> Gate Pads only. RF pins -> Any (but prefer RF)
             return this.pads.filter(pad => {
                 if (pin.role === 'G') return pad.status === 0;
                 return true; 
@@ -293,12 +337,9 @@ class LayoutOptimizer {
         const N = this.pins.length;
         if (N === 0) return { lines: [], stats: { cross:0, crit:0, len:0 } };
 
-        // --- Simulated Annealing Config ---
         let currentAssign = new Array(N).fill(-1);
         let usedPads = new Set();
         
-        // Initial Solution: Smart Greedy
-        // Sort pins so RF pins get first pick
         const pinOrder = this.pins.map(p => p.idx).sort((a,b) => {
             const ra = this.pins[a].role !== 'G';
             const rb = this.pins[b].role !== 'G';
@@ -314,7 +355,6 @@ class LayoutOptimizer {
                 if (usedPads.has(padIdx)) return;
                 const pad = this.pads[padIdx];
                 let c = dist(pin.x, pin.y, pad.x, pad.y);
-                // Greedy bias: RF pin to RF pad
                 if (['S','D'].includes(pin.role) && pad.status === 2) c -= 1000;
                 if (c < minCost) { minCost = c; bestP = padIdx; }
             });
@@ -329,35 +369,29 @@ class LayoutOptimizer {
         let bestAssign = [...currentAssign];
         let bestCostVal = currentCostObj.val;
 
-        // Annealing Parameters
         let temp = 100.0;
-        const coolingRate = 0.95; // Slower cooling for better search
+        const coolingRate = 0.95;
         const minTemp = 0.01;
-        const iterPerTemp = Math.min(200, N * 10); // Scale with problem size
+        const iterPerTemp = Math.min(200, N * 10);
 
         while (temp > minTemp) {
             for (let k = 0; k < iterPerTemp; k++) {
-                // Mutate: 80% Swap, 20% Move to unused
                 const newAssign = [...currentAssign];
                 const mode = Math.random();
                 
                 if (mode < 0.8) { 
-                    // SWAP: Pick two assigned pins
                     const i = Math.floor(Math.random() * N);
                     const j = Math.floor(Math.random() * N);
                     if (i === j || newAssign[i] === -1 || newAssign[j] === -1) continue;
                     
-                    // Validity check
                     const p1 = newAssign[i], p2 = newAssign[j];
                     if (this.allowedPads[i].includes(p2) && this.allowedPads[j].includes(p1)) {
                         newAssign[i] = p2; newAssign[j] = p1;
                     } else { continue; }
                 } else {
-                    // MOVE: Pick one pin and move to unused valid pad
                     const i = Math.floor(Math.random() * N);
                     if (newAssign[i] === -1) continue;
                     
-                    // Find unused pads compatible with pin i
                     const currentUsed = new Set(newAssign.filter(x => x !== -1));
                     const candidates = this.allowedPads[i].filter(pid => !currentUsed.has(pid));
                     
@@ -367,16 +401,13 @@ class LayoutOptimizer {
                     } else { continue; }
                 }
 
-                // Evaluate
                 const newCostObj = this.calculateCost(newAssign);
                 const delta = newCostObj.val - currentCostObj.val;
 
-                // Accept?
                 if (delta < 0 || Math.random() < Math.exp(-delta / temp)) {
                     currentAssign = newAssign;
                     currentCostObj = newCostObj;
 
-                    // Keep track of best ever
                     if (currentCostObj.val < bestCostVal) {
                         bestAssign = [...currentAssign];
                         bestCostVal = currentCostObj.val;
@@ -386,10 +417,8 @@ class LayoutOptimizer {
             temp *= coolingRate;
         }
 
-        // Final Recalculate stats for best assignment
         const finalStats = this.calculateCost(bestAssign);
 
-        // Map back to format for App
         const resultLines = [];
         bestAssign.forEach((padIdx, pinIdx) => {
             if (padIdx === -1) return;
@@ -402,7 +431,7 @@ class LayoutOptimizer {
                 end: {x: pad.x, y: pad.y},
                 type: isRFWire ? 'RF' : 'Gate',
                 devIdx: pin.devIdx,
-                pinIdx: pin.origPinIdx, // Local index for display
+                pinIdx: pin.origPinIdx,
                 role: pin.role,
                 padLbl: pad.lbl
             });
@@ -419,15 +448,14 @@ class LayoutOptimizer {
     }
 
     calculateCost(assign) {
-        // Weights
-        const W_CRIT  = 1e7; // Critical: Missing 1 RF per device
-        const W_CROSS = 1e5; // Crossing
-        const W_PREF  = 1e3; // Preference: RF pin on Gate pad
-        const W_LEN   = 1.0; // Length
+        const W_CRIT  = 1e7; 
+        const W_CROSS = 1e5; 
+        const W_PREF  = 1e3; 
+        const W_LEN   = 1.0; 
 
         let len = 0;
         let prefPenalty = 0;
-        let devHasRF = {}; // devIdx -> bool
+        let devHasRF = {}; 
 
         const segments = [];
 
@@ -436,22 +464,18 @@ class LayoutOptimizer {
             const pin = this.pins[pinIdx];
             const pad = this.pads[padIdx];
 
-            // Length
             len += dist(pin.x, pin.y, pad.x, pad.y);
             segments.push({x1: pin.x, y1: pin.y, x2: pad.x, y2: pad.y});
 
-            // RF Logic
             if (['S','D'].includes(pin.role)) {
                 if (pad.status === 2) {
                     devHasRF[pin.devIdx] = true;
                 } else {
-                    prefPenalty++; // RF pin connected to Gate pad
+                    prefPenalty++; 
                 }
             }
         });
 
-        // Critical Check: Each device must have at least one RF connection?
-        // Logic: If device has active S/D pins, at least one must connect to Blue Pad.
         let crit = 0;
         Object.keys(this.deviceGroups).forEach(dIdx => {
             const groupPins = this.deviceGroups[dIdx];
@@ -461,13 +485,11 @@ class LayoutOptimizer {
             }
         });
 
-        // Crossing Check (O(N^2))
         let cross = 0;
         const segCount = segments.length;
         for (let i = 0; i < segCount; i++) {
             for (let j = i + 1; j < segCount; j++) {
                 const s1 = segments[i], s2 = segments[j];
-                // Reuse helper, mapping struct
                 if (checkIntersection(
                     {x:s1.x1, y:s1.y1}, {x:s1.x2, y:s1.y2},
                     {x:s2.x1, y:s2.y1}, {x:s2.x2, y:s2.y2}
@@ -536,7 +558,7 @@ class App {
         this.selDev = 0;
         this.pads = []; 
         this.padSt = new Array(24).fill(0);
-        this.initPads();
+        this.initPads(); // 初期パッド生成
 
         this.lines = [];
         this.highlightWire = null;
@@ -548,19 +570,65 @@ class App {
         window.addEventListener('resize', () => this.resize());
     }
 
+    // 初期化：パッドの位置情報を生成（ラベルは後で上書き可能）
     initPads() {
+        this.pads = [];
         const max = GRID_SIZE-1;
         const pts = (s,e,n) => Array.from({length:n}, (_,i)=>s+(e-s)/(n-1)*i);
         const p = pts(0, max, 6);
         const rp = [...p].reverse();
         const l = -3.0, h = max + 3.0;
+
+        // デフォルト設定を使って初期化
         const add = (arr, cfg, axis, val) => arr.forEach((v, i) => this.pads.push({ 
             x: axis==='x'?v:val, y: axis==='y'?v:val, lbl: cfg[i] 
         }));
-        add(p, PAD_CONFIG.TOP, 'x', h);
-        add(rp, PAD_CONFIG.RIGHT, 'y', h);
-        add(rp, PAD_CONFIG.BOTTOM, 'x', l);
-        add(p, PAD_CONFIG.LEFT, 'y', l);
+        
+        add(p, DEFAULT_PAD_CONFIG.TOP, 'x', h);
+        add(rp, DEFAULT_PAD_CONFIG.RIGHT, 'y', h);
+        add(rp, DEFAULT_PAD_CONFIG.BOTTOM, 'x', l);
+        add(p, DEFAULT_PAD_CONFIG.LEFT, 'y', l);
+    }
+
+    // Rod選択機能
+    loadRod(rodName) {
+        const config = ROD_PRESETS[rodName];
+        if (!config) return;
+
+        // ボタンのUI更新
+        ['Ariel', 'Belle', 'Donald'].forEach(name => {
+            const btn = document.getElementById('btn-rod-' + name.toLowerCase());
+            if (name === rodName) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+
+        // パッドのラベルとステータスを更新
+        // pads配列の順序: TOP(0-5), RIGHT(6-11), BOTTOM(12-17), LEFT(18-23)
+        let padIndex = 0;
+        const sides = ['TOP', 'RIGHT', 'BOTTOM', 'LEFT'];
+        
+        // 1. ラベル更新
+        sides.forEach(side => {
+            const labels = config.labels[side];
+            labels.forEach(lbl => {
+                if (this.pads[padIndex]) {
+                    this.pads[padIndex].lbl = lbl;
+                }
+                padIndex++;
+            });
+        });
+
+        // 2. 故障箇所(status=1)の更新
+        this.padSt.fill(0); // リセット
+        if (config.broken) {
+            config.broken.forEach(idx => {
+                if (idx >= 0 && idx < 24) this.padSt[idx] = 1; // 1 = Broken/Forbidden
+            });
+        }
+
+        // リセットして再描画
+        this.reset();
+        this.draw();
     }
 
     toScr(lx, ly) {
@@ -688,7 +756,7 @@ class App {
         const w = document.getElementById('canvas-wrapper');
         this.canvas.width = w.clientWidth; this.canvas.height = w.clientHeight;
         const min = Math.min(this.canvas.width, this.canvas.height);
-        this.scale = min / (GRID_SIZE + 3 + 3); // Approx margin
+        this.scale = min / (GRID_SIZE + 3 + 3); 
         this.draw();
     }
     
@@ -779,7 +847,6 @@ class App {
         document.getElementById('btn-calc').addEventListener('click', () => {
             const btn = document.getElementById('btn-calc'); const orig = btn.innerHTML;
             btn.innerHTML = 'Calculating (SA)...';
-            // Allow UI to render text change before blocking main thread
             setTimeout(() => { 
                 const optimizer = new LayoutOptimizer(this.devices, this.pads, this.padSt);
                 const res = optimizer.solve();
