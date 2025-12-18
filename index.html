@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bonding Optimizer for QLEAP</title>
+    <title>Bonding Optimizer for QLEAP (Perfect Edition)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
         :root {
             --bg-app: #0f172a;
-            --bg-panel: rgba(30, 41, 59, 0.95);
+            --bg-panel: rgba(15, 23, 42, 0.6); 
             --text-main: #f1f5f9;
             --text-muted: #94a3b8;
             --accent: #3b82f6; 
@@ -23,21 +23,39 @@
         body {
             font-family: 'Inter', sans-serif;
             margin: 0; display: flex; height: 100vh;
-            background-color: var(--bg-app); color: var(--text-main);
+            background-color: var(--bg-app); 
+            background-image: 
+                linear-gradient(to right, rgba(15, 23, 42, 0.95) 380px, rgba(15, 23, 42, 0.85)),
+                url('https://lh6.googleusercontent.com/proxy/637gJTaPxAAF88Eiow0l641gVFZv1l0PJLJEEcHx7FJaKJf9_QHL4O8SOo2_k_EHrWkPauF7b_mbPtXcoPvcf-JM9eL4W7Va0DkddveVkYbUyxLJhQ');
+            background-size: cover;
+            background-position: center;
+            color: var(--text-main);
             overflow: hidden; user-select: none;
         }
 
         /* Sidebar */
         #sidebar {
-            width: 380px; background-color: var(--bg-app);
+            width: 380px; 
+            background-color: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border-right: 1px solid var(--border);
             display: flex; flex-direction: column; padding: 24px;
             z-index: 20; box-shadow: 10px 0 30px rgba(0,0,0,0.3);
             overflow-y: auto;
         }
 
+        .brand-container {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+        }
+
+        .brand-icon {
+            width: 32px; height: 32px;
+            filter: drop-shadow(0 0 8px var(--accent-glow));
+        }
+
         .brand {
-            font-size: 1.4rem; font-weight: 800; margin-bottom: 20px;
+            font-size: 1.4rem; font-weight: 800;
             color: #fff; letter-spacing: -0.03em;
             background: linear-gradient(90deg, #fff, #94a3b8);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -52,6 +70,8 @@
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 15px var(--accent-glow);
             letter-spacing: 0.02em; margin-bottom: 20px;
+            backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
         }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px var(--accent-glow); }
         .btn-primary:active { transform: translateY(0); }
@@ -75,12 +95,12 @@
         /* Rod Selection Buttons */
         .btn-group { display: flex; gap: 8px; margin-bottom: 10px; }
         .btn-outline {
-            flex: 1; padding: 10px; background: transparent;
+            flex: 1; padding: 10px; background: rgba(15, 23, 42, 0.4);
             border: 1px solid var(--border); color: var(--text-muted);
             border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
             transition: all 0.2s;
         }
-        .btn-outline:hover { border-color: var(--accent); color: #fff; background: rgba(255,255,255,0.05); }
+        .btn-outline:hover { border-color: var(--accent); color: #fff; background: rgba(59, 130, 246, 0.1); }
         .btn-outline.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 10px var(--accent-glow); }
 
         /* Toggle */
@@ -127,8 +147,8 @@
         .stat-item { background: var(--bg-panel); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
         .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
         .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700; margin-top: 4px; }
-        .stat-val.bad { color: var(--danger); }
-        .stat-val.good { color: var(--success); }
+        .stat-val.bad { color: var(--danger); text-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+        .stat-val.good { color: var(--success); text-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
 
         /* List */
         #connection-list { display: flex; flex-direction: column; gap: 12px; }
@@ -159,12 +179,14 @@
 
         /* Canvas */
         #canvas-wrapper {
-            flex-grow: 1; position: relative; background-color: #020617;
-            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+            flex-grow: 1; position: relative; 
+            background-color: transparent; 
+            background-image: radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px);
             background-size: 20px 20px;
             display: flex; justify-content: center; align-items: center; overflow: hidden;
         }
-        canvas { border-radius: 4px; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        canvas { border-radius: 4px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); background: rgba(2, 6, 23, 0.4); backdrop-filter:blur(2px); }
+        
         #edit-mode-overlay {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.5);
@@ -172,6 +194,7 @@
             font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em;
             pointer-events: none; display: none; backdrop-filter: blur(4px);
             text-align: center; line-height: 1.5;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
         }
         #edit-help { font-size: 0.8rem; font-weight: 400; opacity: 0.95; display: block; margin-top: 4px; color: #fff; }
         .key-badge {
@@ -183,6 +206,7 @@
         #toast-container {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
             display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 300px;
+            z-index: 100;
         }
         .toast {
             background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px);
@@ -196,12 +220,17 @@
         .toast.show { opacity: 1; transform: translateY(0); }
         .toast.error { border-color: var(--danger); color: #fca5a5; }
         .toast.success { border-color: var(--success); color: #86efac; }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <div class="brand">Bonding Optimizer for QLEAP</div>
+    <div class="brand-container">
+        <img src="https://cdn-icons-png.flaticon.com/512/8886/8886951.png" class="brand-icon" alt="Quantum Icon">
+        <div class="brand">Bonding Optimizer <br><span style="font-size:0.8em; opacity:0.8; font-weight:400;">for QLEAP</span></div>
+    </div>
     
     <div class="section-header">Select Rod</div>
     <div class="btn-group">
@@ -265,7 +294,9 @@
 
     <div class="section-header">Connections</div>
     <div id="connection-list">
-        <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+        <div style="padding: 30px 20px; text-align: center; color: var(--text-muted); font-size: 0.9rem; opacity: 0.6;">
+            <img src="https://cdn-icons-png.flaticon.com/512/2620/2620614.png" width="48" style="margin-bottom:10px; filter: invert(1) brightness(0.7);">
+            <br>
             Ready to calculate.
         </div>
     </div>
@@ -305,7 +336,7 @@ const ROD_PRESETS = {
     },
     'Donald': {
         labels: { 'TOP':[19,21,24,7,404,404], 'RIGHT':[1,404,4,6,8,10], 'BOTTOM':[12,14,404,18,404,404], 'LEFT':[404,404,11,13,404,19] },
-        broken: [4,5,7,14,16,17,18,19,22], rf: [23]// 18 is dead !!
+        broken: [4,5,7,14,16,17,18,19,22], rf: [23]
     }
 };
 
@@ -316,17 +347,17 @@ const DEFAULT_PAD_CONFIG = {
 const GRID_SIZE = 12;
 
 const THEME = {
-    GRID_1: '#f8fafc', GRID_2: '#f1f5f9', GRID_BORDER: '#334155',
+    GRID_1: 'rgba(248, 250, 252, 0.03)', GRID_2: 'rgba(241, 245, 249, 0.06)', GRID_BORDER: '#334155', 
     PAD_G: '#22c55e', PAD_X: '#ef4444', PAD_RF: '#3b82f6',
     PIN_OFF: '#cbd5e1', PIN_G: '#eab308', PIN_RF: '#3b82f6',
     WIRE_G: '#f59e0b', WIRE_RF: '#3b82f6',
-    DEV_BODY: 'rgba(71, 85, 105, 0.05)', DEV_BORDER: '#64748b', DEV_SEL: '#8b5cf6',
+    DEV_BODY: 'rgba(71, 85, 105, 0.15)', DEV_BORDER: '#64748b', DEV_SEL: '#8b5cf6', 
     HIGHLIGHT: '#d946ef', EDIT_PAD_BORDER: '#f59e0b', BOND_PT: '#ffffff'
 };
 
 const dist = (x1, y1, x2, y2) => Math.hypot(x1-x2, y1-y2);
 
-// Intersection check for segments
+// Intersection check
 const checkIntersection = (p1, p2, p3, p4) => {
     const d = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
     if (Math.abs(d) < 1e-9) return false; 
@@ -335,23 +366,16 @@ const checkIntersection = (p1, p2, p3, p4) => {
     return (u > 0.001 && u < 0.999) && (v > 0.001 && v < 0.999);
 };
 
-// Calculate closest point on a pad (Rectangle or Circle) from a source point
+// Calculate closest point on a pad
 const getNearestPointOnPad = (src, pad) => {
     let nx, ny;
     if (pad.shape === 'rect') {
-        const hW = pad.w / 2;
-        const hH = pad.h / 2;
-        // Clamp src point to rectangle bounds
+        const hW = pad.w / 2; const hH = pad.h / 2;
         nx = Math.max(pad.x - hW, Math.min(pad.x + hW, src.x));
         ny = Math.max(pad.y - hH, Math.min(pad.y + hH, src.y));
-    } else { // Circle
+    } else { 
         const angle = Math.atan2(src.y - pad.y, src.x - pad.x);
-        // Ellipse radius at that angle approximation (enough for visual)
-        // Or strictly if w=h (circle), r=w/2
-        // If ellipse, r depends on angle.
-        // r = (a*b) / sqrt((b*cos)^2 + (a*sin)^2)
-        const a = pad.w / 2;
-        const b = pad.h / 2;
+        const a = pad.w / 2; const b = pad.h / 2;
         const r = (a*b) / Math.sqrt(Math.pow(b*Math.cos(angle),2) + Math.pow(a*Math.sin(angle),2));
         nx = pad.x + Math.cos(angle) * r;
         ny = pad.y + Math.sin(angle) * r;
@@ -360,7 +384,7 @@ const getNearestPointOnPad = (src, pad) => {
 };
 
 /* =========================================
-   LOGIC: OPTIMIZER (SA with Geometry)
+   LOGIC: OPTIMIZER (Multi-Start SA)
    ========================================= */
 class LayoutOptimizer {
     constructor(devices, pads, padStatus, deviceActive) {
@@ -405,110 +429,136 @@ class LayoutOptimizer {
         });
     }
 
+    // MULTI-START SOLVER
     solve() {
         const N = this.pins.length;
         if (N === 0) return { lines: [], stats: { cross:0, crit:0, len:0 } };
 
-        // 1. DISCRETE OPTIMIZATION
+        let bestGlobalAssign = null;
+        let bestGlobalCost = Infinity;
+        const ATTEMPTS = 20; // 20 trials for stability
+
+        for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+            const result = this.runSA(N);
+            if (result.cost < bestGlobalCost) {
+                bestGlobalCost = result.cost;
+                bestGlobalAssign = result.assign;
+            }
+        }
+
+        const finalLines = this.resolveLandingPoints(bestGlobalAssign);
+        const finalStats = this.calculateStats(finalLines);
+        return { lines: finalLines, stats: finalStats };
+    }
+
+    runSA(N) {
         let currentAssign = new Array(N).fill(-1);
         let usedPads = new Set();
-        
-        // Initial Greedy Guess
+
+        // 1. Initial Smart Greedy
         const pinOrder = this.pins.map(p => p.idx).sort((a,b) => {
-            const ra = this.pins[a].role !== 'G';
-            const rb = this.pins[b].role !== 'G';
-            return (ra === rb) ? 0 : (ra ? -1 : 1); // RF Priority
+            const ra = ['S','D'].includes(this.pins[a].role);
+            const rb = ['S','D'].includes(this.pins[b].role);
+            return (ra === rb) ? 0 : (ra ? -1 : 1);
         });
 
         pinOrder.forEach(pIdx => {
             const pin = this.pins[pIdx];
             const allowed = this.allowedPads[pIdx];
             let bestP = -1, minCost = Infinity;
-            allowed.forEach(padIdx => {
+            // Shuffle for variety in greedy phase
+            const shuffledAllowed = [...allowed].sort(() => Math.random() - 0.5);
+
+            shuffledAllowed.forEach(padIdx => {
                 if (usedPads.has(padIdx)) return;
                 const pad = this.pads[padIdx];
-                // Distance to Pad Center
                 let c = dist(pin.x, pin.y, pad.x, pad.y);
-                if (['S','D'].includes(pin.role) && pad.status === 2) c -= 1000;
+                if (['S','D'].includes(pin.role) && pad.status === 2) c -= 5000;
                 if (c < minCost) { minCost = c; bestP = padIdx; }
             });
             if (bestP !== -1) { currentAssign[pIdx] = bestP; usedPads.add(bestP); }
         });
 
-        let currentCostObj = this.calculateCost(currentAssign);
+        let currentCostVal = this.calculateCostValue(currentAssign);
         let bestAssign = [...currentAssign];
-        let bestCostVal = currentCostObj.val;
+        let bestCostVal = currentCostVal;
 
-        // SA Loop
+        // 2. Annealing
         let temp = 100.0;
-        const coolingRate = 0.92;
-        const iterPerTemp = Math.min(300, N * 15);
+        const coolingRate = 0.97;
+        const iterPerTemp = Math.max(50, N * 10);
 
-        while (temp > 0.01) {
+        while (temp > 0.1) {
             for (let k = 0; k < iterPerTemp; k++) {
                 const newAssign = [...currentAssign];
                 const mode = Math.random();
-                
-                if (mode < 0.7 && N > 1) { // Swap
+                let changed = false;
+
+                if (mode < 0.5 && N > 1) { // Swap
                     const i = Math.floor(Math.random() * N);
                     const j = Math.floor(Math.random() * N);
-                    if (i === j || newAssign[i] === -1 || newAssign[j] === -1) continue;
-                    const p1 = newAssign[i], p2 = newAssign[j];
-                    if (this.allowedPads[i].includes(p2) && this.allowedPads[j].includes(p1)) {
-                        newAssign[i] = p2; newAssign[j] = p1;
-                    } else continue;
+                    if (i !== j && newAssign[i] !== -1 && newAssign[j] !== -1) {
+                        const p1 = newAssign[i], p2 = newAssign[j];
+                        if (this.allowedPads[i].includes(p2) && this.allowedPads[j].includes(p1)) {
+                            newAssign[i] = p2; newAssign[j] = p1;
+                            changed = true;
+                        }
+                    }
                 } else { // Move
                     const i = Math.floor(Math.random() * N);
-                    if (newAssign[i] === -1) continue;
-                    const currentUsed = new Set(newAssign.filter(x => x !== -1));
-                    const candidates = this.allowedPads[i].filter(pid => !currentUsed.has(pid));
-                    if (candidates.length > 0) {
-                        newAssign[i] = candidates[Math.floor(Math.random() * candidates.length)];
-                    } else continue;
+                    if (newAssign[i] !== -1) {
+                        const currentUsed = new Set(newAssign.filter(x => x !== -1));
+                        const candidates = this.allowedPads[i].filter(pid => !currentUsed.has(pid));
+                        if (candidates.length > 0) {
+                            newAssign[i] = candidates[Math.floor(Math.random() * candidates.length)];
+                            changed = true;
+                        }
+                    }
                 }
 
-                const newCostObj = this.calculateCost(newAssign);
-                if (newCostObj.val < currentCostObj.val || Math.random() < Math.exp(-(newCostObj.val - currentCostObj.val) / temp)) {
-                    currentAssign = newAssign;
-                    currentCostObj = newCostObj;
-                    if (currentCostObj.val < bestCostVal) {
-                        bestAssign = [...currentAssign];
-                        bestCostVal = currentCostObj.val;
+                if (changed) {
+                    const newCostVal = this.calculateCostValue(newAssign);
+                    const delta = newCostVal - currentCostVal;
+                    if (delta < 0 || Math.random() < Math.exp(-delta / temp)) {
+                        currentAssign = newAssign;
+                        currentCostVal = newCostVal;
+                        if (currentCostVal < bestCostVal) {
+                            bestAssign = [...currentAssign];
+                            bestCostVal = currentCostVal;
+                        }
                     }
                 }
             }
             temp *= coolingRate;
         }
-
-        // 2. GEOMETRIC REFINEMENT
-        const finalLines = this.resolveLandingPoints(bestAssign);
-        const finalStats = this.calculateStats(finalLines);
-        return { lines: finalLines, stats: finalStats };
+        return { assign: bestAssign, cost: bestCostVal };
     }
 
-    calculateCost(assign) {
-        const W_CRIT = 1e8; 
-        const W_CROSS = 1e5;
-        const W_PREF = 1e4;
-        const W_LEN = 1.0;
+    calculateCostValue(assign) {
+        const W_CRIT = 1e9; const W_CROSS = 1e6; const W_PREF = 1e4; const W_LEN = 1.0;
 
         let len = 0, prefPenalty = 0, crit = 0, cross = 0;
         let devHasRF = {}; 
         const segments = [];
 
-        assign.forEach((padIdx, pinIdx) => {
-            if (padIdx === -1) return;
-            const pin = this.pins[pinIdx];
+        for(let i=0; i<assign.length; i++) {
+            const padIdx = assign[i];
+            if (padIdx === -1) { crit++; continue; }
+            
+            const pin = this.pins[i];
             const pad = this.pads[padIdx];
 
             len += dist(pin.x, pin.y, pad.x, pad.y);
-            segments.push({x1: pin.x, y1: pin.y, x2: pad.x, y2: pad.y});
+            
+            segments.push({
+                x1: pin.x, y1: pin.y, x2: pad.x, y2: pad.y, idx: i
+            });
 
             if (['S','D'].includes(pin.role)) {
                 if (pad.status === 2) devHasRF[pin.devIdx] = true;
                 else prefPenalty++;
             }
-        });
+        }
 
         Object.keys(this.deviceGroups).forEach(dIdx => {
             const groupPins = this.deviceGroups[dIdx];
@@ -526,11 +576,11 @@ class LayoutOptimizer {
             }
         }
 
-        const total = (crit * W_CRIT) + (cross * W_CROSS) + (prefPenalty * W_PREF) + (len * W_LEN);
-        return { val: total };
+        return (crit * W_CRIT) + (cross * W_CROSS) + (prefPenalty * W_PREF) + (len * W_LEN);
     }
 
     resolveLandingPoints(assign) {
+        if (!assign) return [];
         const padToPins = {}; 
         assign.forEach((padIdx, pinIdx) => {
             if (padIdx === -1) return;
@@ -543,7 +593,6 @@ class LayoutOptimizer {
             const padIdx = parseInt(pKey);
             const pad = this.pads[padIdx];
             const pinIndices = padToPins[padIdx];
-            
             pinIndices.forEach(pidx => {
                 const pin = this.pins[pidx];
                 const pt = getNearestPointOnPad({x:pin.x, y:pin.y}, pad);
@@ -572,7 +621,8 @@ class LayoutOptimizer {
         for(let i=0; i<lines.length; i++) {
             for(let j=i+1; j<lines.length; j++) {
                 const l1 = lines[i], l2 = lines[j];
-                if (dist(l1.end.x, l1.end.y, l2.end.x, l2.end.y) < 0.1) continue; 
+                if (dist(l1.end.x, l1.end.y, l2.end.x, l2.end.y) < 0.5) continue;
+                if (dist(l1.start.x, l1.start.y, l2.start.x, l2.start.y) < 0.1) continue;
                 if(checkIntersection(l1.start, l1.end, l2.start, l2.end)) cross++;
             }
         }
@@ -629,7 +679,7 @@ class App {
         this.canvas = document.getElementById('mainCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.scale = 50; 
-        this.offset = {x:0, y:0}; // Dynamic offset
+        this.offset = {x:0, y:0}; 
 
         this.devices = [
             new DeviceModel('SQD', 2, 4, 3.5, 3.5),
@@ -647,7 +697,6 @@ class App {
         this.drag = { active:false, type:null, idx:-1, off:{x:0,y:0} };
 
         this.setup();
-        // Resize will happen after first frame or explicitly called
         setTimeout(() => this.resize(), 10);
         window.addEventListener('resize', () => this.resize());
     }
@@ -884,7 +933,6 @@ class App {
     resize() {
         const w = document.getElementById('canvas-wrapper');
         this.canvas.width = w.clientWidth; this.canvas.height = w.clientHeight;
-        
         if (this.pads.length === 0) return;
         
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -896,7 +944,6 @@ class App {
         const margin = 2.0; 
         const boundsW = maxX - minX + margin*2;
         const boundsH = maxY - minY + margin*2;
-        
         const scaleX = this.canvas.width / boundsW;
         const scaleY = this.canvas.height / boundsH;
         this.scale = Math.min(scaleX, scaleY) * 0.9;
@@ -907,7 +954,6 @@ class App {
         
         this.offset.x = (gridCx - bboxCx) * this.scale;
         this.offset.y = (bboxCy - gridCx) * this.scale;
-
         this.draw();
     }
     
@@ -974,7 +1020,6 @@ class App {
         this.canvas.addEventListener('contextmenu', e => {
             e.preventDefault(); 
             const m = getM(e);
-            
             if (this.isPadEditMode) {
                 let hitPad = -1;
                 this.pads.forEach((p, i) => { 
@@ -989,7 +1034,6 @@ class App {
                 }
                 return;
             }
-
             this.devices.forEach((d, di) => {
                 if (!this.deviceActive[di]) return;
                 d.getAbsPins().forEach((p, pi) => {
@@ -1000,31 +1044,19 @@ class App {
         
         this.canvas.addEventListener('wheel', e => {
             if (!this.isPadEditMode) return;
-            // Prevent Browser Zoom if using Ctrl
             if (e.ctrlKey) e.preventDefault();
-            
             const m = getM(e);
             let hitPad = -1;
             this.pads.forEach((p, i) => { 
                 if(dist(m.x,m.y,p.x,p.y) < Math.max(p.w, p.h)/2 + 1.0) hitPad = i; 
             });
-
             if (hitPad !== -1) {
                 e.preventDefault();
                 const pad = this.pads[hitPad];
                 const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                
-                if (e.shiftKey) { 
-                     // Shift = Width (X)
-                     pad.w = Math.max(0.2, pad.w + delta);
-                } else if (e.ctrlKey) {
-                    // Ctrl = Height (Y)
-                    pad.h = Math.max(0.2, pad.h + delta);
-                } else {
-                    // Normal = Both
-                    pad.w = Math.max(0.2, pad.w + delta); 
-                    pad.h = Math.max(0.2, pad.h + delta);
-                }
+                if (e.shiftKey) { pad.w = Math.max(0.2, pad.w + delta);
+                } else if (e.ctrlKey) { pad.h = Math.max(0.2, pad.h + delta);
+                } else { pad.w = Math.max(0.2, pad.w + delta); pad.h = Math.max(0.2, pad.h + delta); }
                 this.draw();
             }
         }, {passive: false});
@@ -1052,22 +1084,44 @@ class App {
         });
         
         document.getElementById('btn-calc').addEventListener('click', () => {
-            const btn = document.getElementById('btn-calc'); const orig = btn.innerHTML;
-            btn.innerHTML = 'Optimizing...';
+            const btn = document.getElementById('btn-calc'); 
+            const orig = 'Optimize Layout (SA)';
+            
+            btn.innerHTML = '<span style="display:inline-block;animation:spin 1s infinite linear">⚙️</span> Calculation...';
+            btn.style.opacity = "0.7";
+            btn.style.pointerEvents = "none";
+            
             setTimeout(() => { 
                 const optimizer = new LayoutOptimizer(this.devices, this.pads, this.padSt, this.deviceActive);
                 const res = optimizer.solve();
+                
                 this.lines = res.lines;
                 this.updateUI(res.stats);
                 this.draw();
+                
                 btn.innerHTML = orig; 
-            }, 50);
+                btn.style.opacity = "1";
+                btn.style.pointerEvents = "auto";
+                
+                if(res.stats.cross === 0 && res.stats.crit === 0) {
+                    const t = document.createElement('div');
+                    t.className = 'toast success show';
+                    t.innerHTML = '<span>✨</span> Optimized Perfectly!';
+                    document.getElementById('toast-container').appendChild(t);
+                    setTimeout(()=>t.remove(), 3000);
+                }
+            }, 100);
         });
     }
 
     reset() {
         this.lines = [];
-        document.getElementById('connection-list').innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:0.9rem;">Modified. Re-run optimization.</div>';
+        document.getElementById('connection-list').innerHTML = `
+        <div style="padding:30px 20px; text-align:center; color:#94a3b8; font-size:0.9rem; opacity:0.6;">
+            <img src="https://cdn-icons-png.flaticon.com/512/2620/2620614.png" width="48" style="margin-bottom:10px; filter: invert(1) brightness(0.7);">
+            <br>
+            Modified. Re-run optimization.
+        </div>`;
         ['toast-cross', 'toast-rf'].forEach(id => document.getElementById(id).classList.remove('show'));
     }
 
@@ -1086,7 +1140,6 @@ class App {
         list.innerHTML = '';
         this.devices.forEach((d, di) => {
             if (!this.deviceActive[di]) return;
-
             const lns = this.lines.filter(l => l.devIdx === di);
             if(lns.length===0) return;
             lns.sort((a,b) => a.pinIdx - b.pinIdx);
