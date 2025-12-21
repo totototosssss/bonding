@@ -617,18 +617,38 @@ class LayoutOptimizer {
 
     calculateStats(lines) {
         let len = 0, cross = 0, crit = 0;
+        
+        // ワイヤ長の合計計算
         lines.forEach(l => { len += dist(l.start.x, l.start.y, l.end.x, l.end.y); });
+        
+        // 交差判定
         for(let i=0; i<lines.length; i++) {
             for(let j=i+1; j<lines.length; j++) {
                 const l1 = lines[i], l2 = lines[j];
+                // 同じパッドやピン付近での微小な重なりは無視
                 if (dist(l1.end.x, l1.end.y, l2.end.x, l2.end.y) < 0.5) continue;
                 if (dist(l1.start.x, l1.start.y, l2.start.x, l2.start.y) < 0.1) continue;
                 if(checkIntersection(l1.start, l1.end, l2.start, l2.end)) cross++;
             }
         }
-        const rfNeeded = this.pins.filter(p => ['S','D'].includes(p.role));
-        const rfConnected = lines.filter(l => l.type === 'RF');
-        if (rfNeeded.length > rfConnected.length) crit = rfNeeded.length - rfConnected.length;
+
+        // 修正: RF接続判定を「ピンごとの総数比較」から「デバイス単位の有無」に変更
+        const deviceIndices = [...new Set(this.pins.map(p => p.devIdx))];
+        
+        deviceIndices.forEach(dIdx => {
+             // そのデバイスでSまたはDピンが有効になっているか確認
+             const devPins = this.pins.filter(p => p.devIdx === dIdx);
+             const hasSD = devPins.some(p => ['S', 'D'].includes(p.role));
+             
+             if (hasSD) {
+                 // 有効な場合、そのデバイスから出ているワイヤのうち、少なくとも1本がRF接続か確認
+                 const hasRF = lines.some(l => l.devIdx === dIdx && l.type === 'RF');
+                 
+                 // 1本もRFに繋がっていなければクリティカルエラー（Crit Miss）
+                 if (!hasRF) crit++;
+             }
+        });
+
         return { len, cross, crit };
     }
 }
@@ -1145,7 +1165,11 @@ class App {
             lns.sort((a,b) => a.pinIdx - b.pinIdx);
             
             const div = document.createElement('div');
-            const rfErr = (lns.some(l=>['S','D'].includes(l.role)) && !lns.some(l=>l.type==='RF'));
+            // 修正: リスト表示でも「1本でもRFがあればOK」判定にする
+            const hasSD = lns.some(l=>['S','D'].includes(l.role));
+            const hasRF = lns.some(l=>l.type==='RF');
+            const rfErr = hasSD && !hasRF;
+
             div.className = 'dev-card' + (rfErr ? ' error' : '');
             let html = `<div class="dev-title"><span>${d.name}</span>${rfErr ? '<span style="color:#ef4444;font-size:0.7rem">NO RF</span>' : ''}</div>`;
             lns.forEach(l => {
